@@ -44,7 +44,7 @@
     {"text": "USSR split into 15 independent states", "speaker": "Diego", "verdict": "TRUE", "correction": null},
     {"text": "Berlin Wall fell on November 9, 1989", "speaker": "Rina", "verdict": "TRUE", "correction": null},
     {"text": "Korean War ended in 1953 with an armistice, not a peace treaty", "speaker": "Tom", "verdict": "TRUE", "correction": null},
-    {"text": "Japan's debt-to-GDP ratio is over 260%", "speaker": "Rina", "verdict": "TRUE", "correction": null},
+    {"text": "Japan's debt-to-GDP ratio is over 260%", "speaker": "Rina", "verdict": "APPROXIMATELY_TRUE", "correction": "Japan's debt-to-GDP ratio is around 230-260% depending on the source and year; 260% is on the high end"},
     {"text": "Panama Canal was completed in 1914 by the US", "speaker": "Tom", "verdict": "TRUE", "correction": null},
     {"text": "France tried to build the Panama Canal first under Ferdinand de Lesseps", "speaker": "Tom", "verdict": "TRUE", "correction": null},
     {"text": "The Suez Canal was built by the British in 1869", "speaker": "Diego", "verdict": "FALSE", "correction": "The Suez Canal was built by the French-led Suez Canal Company and Egyptian labor, completed in 1869. Britain bought shares in 1875."},

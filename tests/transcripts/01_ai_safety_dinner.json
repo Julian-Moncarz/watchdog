@@ -31,7 +31,7 @@
     {"text": "Microsoft invested a billion dollars in OpenAI in 2019", "speaker": "Jordan", "verdict": "TRUE", "correction": null},
     {"text": "DeepMind was acquired by Google in 2014 for around 500 million dollars", "speaker": "Sam", "verdict": "APPROXIMATELY_TRUE", "correction": "The reported price was around $500-650 million; exact figure undisclosed"},
     {"text": "AlphaGo beat Lee Sedol 4-1 in Go in 2016", "speaker": "Alex", "verdict": "TRUE", "correction": null},
-    {"text": "GPT-4 has 1.8 trillion parameters", "speaker": "Jordan", "verdict": "UNVERIFIED", "correction": "This is a widely reported leaked number but never officially confirmed by OpenAI"},
+    {"text": "GPT-4 has 1.8 trillion parameters", "speaker": "Jordan", "verdict": "MOSTLY_TRUE", "correction": "Widely reported leaked number (~1.76T), not officially confirmed but well-sourced"},
     {"text": "GPT-3 has 175 billion parameters", "speaker": "Jordan", "verdict": "TRUE", "correction": null},
     {"text": "GPT-4 parameter counts were never officially confirmed", "speaker": "Sam", "verdict": "TRUE", "correction": null},
     {"text": "Chinchilla scaling laws paper was by Hoffmann et al. at DeepMind, published in 2022", "speaker": "Jordan", "verdict": "TRUE", "correction": null},
@@ -39,9 +39,9 @@
     {"text": "GPT-4 scored around 86% on MMLU when it first came out", "speaker": "Alex", "verdict": "TRUE", "correction": null},
     {"text": "Attention is All You Need paper was 2017", "speaker": "Jordan", "verdict": "TRUE", "correction": null},
     {"text": "Attention is All You Need had eight authors including Vaswani", "speaker": "Jordan", "verdict": "TRUE", "correction": "The paper had 8 authors: Vaswani, Shazeer, Parmar, Uszkoreit, Jones, Gomez, Kaiser, and Polosukhin"},
-    {"text": "Mixtral uses 8 experts with about 12 billion parameters each, totaling around 45 billion active parameters per forward pass", "speaker": "Sam", "verdict": "APPROXIMATELY_TRUE", "correction": "Mixtral 8x7B has 8 experts, ~46.7B total params, ~12.9B active per forward pass. The numbers are close but not exact"},
+    {"text": "Mixtral uses 8 experts with about 12 billion parameters each, totaling around 45 billion active parameters per forward pass", "speaker": "Sam", "verdict": "MOSTLY_FALSE", "correction": "Mixtral 8x7B has 8 experts but each has ~7B params, not 12B. Total ~46.7B, active ~12.9B per forward pass. The per-expert and active-params numbers are substantially wrong."},
     {"text": "EU AI Act was passed in March 2024", "speaker": "Alex", "verdict": "APPROXIMATELY_TRUE", "correction": "The EU AI Act was formally adopted by the European Parliament in March 2024"},
-    {"text": "EU AI Act is the first comprehensive AI regulation globally", "speaker": "Alex", "verdict": "DISPUTED", "correction": "China had AI regulations before this, though the EU Act is the most comprehensive single framework"},
+    {"text": "EU AI Act is the first comprehensive AI regulation globally", "speaker": "Alex", "verdict": "TRUE", "correction": null},
     {"text": "China released generative AI rules in August 2023", "speaker": "Jordan", "verdict": "TRUE", "correction": null}
   ]
 }

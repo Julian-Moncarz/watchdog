@@ -13,36 +13,44 @@ import { join } from "path";
 
 const client = new Anthropic();
 
-// ── Prompts ──────────────────────────────────────────────────────────────────
-
-const EXTRACTION_PROMPT = `You are a factual claim extractor. Given a conversation transcript, extract ALL factual claims made by speakers.
-
-A factual claim is any statement that can be verified as true or false. This includes:
-- Hard facts (dates, numbers, names, events)
-- Commonly believed "facts" that may be myths
-- Subjective-but-verifiable claims (e.g. "X is better than Y at Z" — if benchmarks exist)
-- Approximate numbers or dates presented as fact
-
-Do NOT extract:
-- Pure opinions with no verifiable component ("I like pizza")
-- Questions without assertions
-- Future predictions
-- Hypotheticals
-
-For each claim, extract:
-1. The exact factual assertion (restate it clearly and concisely)
-2. The speaker who made it
-3. Whether it was presented as certain, approximate, or hedged
-
-Respond with a JSON array. Each element:
-{
-  "claim": "clear restatement of the factual claim",
-  "speaker": "speaker name",
-  "confidence": "certain" | "approximate" | "hedged",
-  "context": "brief quote from transcript for traceability"
+async function withRetry(fn, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e.status === 429 && i < maxRetries - 1) {
+        const waitSec = 15 * (i + 1);
+        process.stdout.write(`  [Rate limited, waiting ${waitSec}s...]\n`);
+        await new Promise((r) => setTimeout(r, waitSec * 1000));
+      } else {
+        throw e;
+      }
+    }
+  }
 }
 
-Be thorough. Extract EVERY factual claim, even if it seems obviously true. Do not skip claims just because another speaker corrected them — the original wrong claim still needs to be extracted.`;
+// ── Prompts ──────────────────────────────────────────────────────────────────
+
+const EXTRACTION_PROMPT = `You are a factual claim extractor. Given a conversation transcript, extract every factual claim made by speakers.
+
+A factual claim is a statement that can be checked as true or false:
+- Hard facts: dates, numbers, names, events, measurements
+- Common myths stated as fact
+- Subjective-but-verifiable: "X is better than Y at Z" (if evidence/benchmarks exist)
+
+Do NOT extract:
+- Pure opinions ("I like pizza"), questions, predictions, hypotheticals
+- Restatements of what another speaker just said (extract it once, from whoever said it first)
+- Meta-commentary ("that's interesting", "fair enough")
+
+IMPORTANT:
+- Keep each claim as ONE atomic assertion. Do not combine multiple facts into one claim.
+- Preserve the speaker's original assertion including their stance. If someone says "Einstein failed math", extract "Einstein failed math" (not "Einstein may have failed math").
+- If Speaker A makes a claim and Speaker B corrects it, extract BOTH as separate claims attributed to the correct speakers.
+- Do NOT extract the correction as a claim by the original speaker.
+
+Respond with ONLY a JSON array:
+[{"claim": "concise restatement", "speaker": "name", "context": "short quote"}]`;
 
 const VERIFICATION_PROMPT = `You are a fact-checker. You will receive a factual claim from a conversation. Your job is to verify whether it is true, false, or somewhere in between.
 
@@ -76,7 +84,7 @@ async function extractClaims(transcript) {
     .map((t) => `[${t.speaker}]: ${t.text}`)
     .join("\n");
 
-  const response = await client.messages.create({
+  const response = await withRetry(() => client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 4096,
     messages: [
@@ -85,7 +93,7 @@ async function extractClaims(transcript) {
         content: `${EXTRACTION_PROMPT}\n\n--- TRANSCRIPT ---\n${formattedTranscript}\n--- END TRANSCRIPT ---\n\nExtract all factual claims as JSON array:`,
       },
     ],
-  });
+  }));
 
   const text = response.content[0].text;
   const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -96,7 +104,7 @@ async function extractClaims(transcript) {
 // ── Stage 2: Verify a single claim ─────────────────────────────────────────
 
 async function verifyClaim(claim) {
-  const response = await client.messages.create({
+  const response = await withRetry(() => client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     tools: [
@@ -112,7 +120,7 @@ async function verifyClaim(claim) {
         content: `${VERIFICATION_PROMPT}\n\n"${claim.claim}" (said by ${claim.speaker})`,
       },
     ],
-  });
+  }));
 
   // Find the text block with JSON in the response
   for (const block of response.content) {
@@ -191,7 +199,7 @@ async function evalTranscript(filePath) {
 
   // Stage 2: Verify (parallel, batched to avoid rate limits)
   console.log(`\n[Stage 2] Verifying ${extracted.length} claims...`);
-  const BATCH_SIZE = 5;
+  const BATCH_SIZE = 3;
   const verifications = [];
   for (let i = 0; i < extracted.length; i += BATCH_SIZE) {
     const batch = extracted.slice(i, i + BATCH_SIZE);
@@ -205,13 +213,14 @@ async function evalTranscript(filePath) {
   console.log(`\n[Scoring]`);
   const results = [];
   let exact = 0, close = 0, mismatch = 0, critical = 0, unmatched = 0;
+  const usedIndices = new Set();
 
   for (let i = 0; i < extracted.length; i++) {
     const claim = extracted[i];
     const verification = verifications[i];
 
-    // Find best matching expected claim
-    const expectedMatch = findBestMatch(claim.claim, data.expected_claims);
+    // Find best matching expected claim (each expected claim used at most once)
+    const expectedMatch = findBestMatch(claim.claim, data.expected_claims, usedIndices);
 
     if (!expectedMatch) {
       unmatched++;
@@ -257,7 +266,8 @@ async function evalTranscript(filePath) {
   }
 
   const total = extracted.length;
-  const accuracy = ((exact + close) / Math.max(total, 1) * 100).toFixed(1);
+  const matched = exact + close + mismatch + critical;
+  const accuracy = ((exact + close) / Math.max(matched, 1) * 100).toFixed(1);
   const extractionCoverage = ((total / data.expected_claims.length) * 100).toFixed(1);
 
   console.log(`\n[Results for ${data.id}]`);
@@ -267,26 +277,49 @@ async function evalTranscript(filePath) {
   console.log(`  Mismatches: ${mismatch}`);
   console.log(`  Unmatched claims: ${unmatched}`);
 
-  return { id: data.id, total, expected: data.expected_claims.length, exact, close, mismatch, critical, unmatched, accuracy, extractionCoverage, results };
+  const result = { id: data.id, total, expected: data.expected_claims.length, exact, close, mismatch, critical, unmatched, accuracy, extractionCoverage, results };
+
+  // Save per-transcript results incrementally
+  const outputDir = join(import.meta.dirname, "results");
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(join(outputDir, `${data.id}.json`), JSON.stringify(result, null, 2));
+
+  return result;
 }
 
-function findBestMatch(claimText, expectedClaims) {
+function findBestMatch(claimText, expectedClaims, usedIndices = new Set()) {
   const claimLower = claimText.toLowerCase();
+  const negationWords = new Set(["not", "never", "no", "isn't", "aren't", "wasn't", "weren't", "don't", "doesn't", "didn't", "can't", "cannot", "couldn't", "won't", "wouldn't", "false", "myth", "debunked", "incorrect"]);
+  const claimHasNegation = claimLower.split(/\s+/).some((w) => negationWords.has(w));
+
   let bestScore = 0;
   let bestMatch = null;
+  let bestIndex = -1;
 
-  for (const expected of expectedClaims) {
+  for (let i = 0; i < expectedClaims.length; i++) {
+    if (usedIndices.has(i)) continue;
+    const expected = expectedClaims[i];
     const expLower = expected.text.toLowerCase();
-    // Simple word overlap scoring
-    const claimWords = new Set(claimLower.split(/\s+/).filter((w) => w.length > 3));
-    const expWords = new Set(expLower.split(/\s+/).filter((w) => w.length > 3));
+    const expHasNegation = expLower.split(/\s+/).some((w) => negationWords.has(w));
+
+    // Word overlap scoring
+    const claimWords = new Set(claimLower.split(/\s+/).filter((w) => w.length > 3 && !negationWords.has(w)));
+    const expWords = new Set(expLower.split(/\s+/).filter((w) => w.length > 3 && !negationWords.has(w)));
     const overlap = [...claimWords].filter((w) => expWords.has(w)).length;
-    const score = overlap / Math.max(claimWords.size, expWords.size, 1);
+    let score = overlap / Math.max(claimWords.size, expWords.size, 1);
+
+    // Penalize negation mismatch heavily — "muscle can't turn into fat" should NOT match "muscles turn into fat"
+    if (claimHasNegation !== expHasNegation) {
+      score *= 0.3;
+    }
+
     if (score > bestScore && score > 0.3) {
       bestScore = score;
       bestMatch = expected;
+      bestIndex = i;
     }
   }
+  if (bestIndex >= 0) usedIndices.add(bestIndex);
   return bestMatch;
 }
 
@@ -329,7 +362,8 @@ for (const r of allResults) {
   console.log(`  ${r.id}: ${r.accuracy}% accuracy, ${r.extractionCoverage}% extraction coverage, ${r.critical} critical fails`);
 }
 
-const overallAccuracy = ((totalExact + totalClose) / Math.max(totalClaims, 1) * 100).toFixed(1);
+const totalMatched = totalExact + totalClose + totalMismatch + totalCritical;
+const overallAccuracy = ((totalExact + totalClose) / Math.max(totalMatched, 1) * 100).toFixed(1);
 const overallCoverage = ((totalClaims / Math.max(totalExpected, 1)) * 100).toFixed(1);
 console.log(`\n  OVERALL: ${overallAccuracy}% verification accuracy, ${overallCoverage}% extraction coverage`);
 console.log(`  Total: ${totalClaims} claims extracted, ${totalExact} exact, ${totalClose} close, ${totalMismatch} mismatch, ${totalCritical} critical`);

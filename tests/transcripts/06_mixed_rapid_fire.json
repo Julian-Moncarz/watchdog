@@ -41,8 +41,8 @@
     {"text": "Scotland's national animal is the unicorn, since the 12th century", "speaker": "Fern", "verdict": "TRUE", "correction": null},
     {"text": "3 trillion trees on Earth versus 100-400 billion stars in the Milky Way", "speaker": "Grace", "verdict": "TRUE", "correction": null},
     {"text": "Saudi Arabia imports camels from Australia", "speaker": "Eli", "verdict": "TRUE", "correction": null},
-    {"text": "Russia has a larger surface area than Pluto", "speaker": "Fern", "verdict": "TRUE", "correction": null},
-    {"text": "Russia is 17.1M km², Pluto is 16.7M km²", "speaker": "Fern", "verdict": "APPROXIMATELY_TRUE", "correction": "Russia is ~17.1M km², Pluto's surface area is ~17.6M km². Russia may actually NOT be larger than Pluto by surface area."},
+    {"text": "Russia has a larger surface area than Pluto", "speaker": "Fern", "verdict": "FALSE", "correction": "Pluto's surface area is ~17.6M km², larger than Russia's ~17.1M km²"},
+    {"text": "Russia is 17.1M km², Pluto is 16.7M km²", "speaker": "Fern", "verdict": "FALSE", "correction": "Russia is ~17.1M km², but Pluto is ~17.6M km², not 16.7M km²"},
     {"text": "Lighter invented before the match (Dobereiner lamp 1823, friction matches 1826)", "speaker": "Grace", "verdict": "TRUE", "correction": null},
     {"text": "Sharks appeared about 400 million years ago, trees around 350 million years ago", "speaker": "Eli", "verdict": "TRUE", "correction": null},
     {"text": "52 factorial is about 8 times 10^67", "speaker": "Fern", "verdict": "TRUE", "correction": null}
