@@ -1,19 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const VERIFICATION_PROMPT = `You are a fact-checker. You will receive a factual claim from a conversation. Your job is to verify whether it is true, false, or somewhere in between.
-
-Use web search to verify the claim. Search for authoritative sources.
+const VERIFICATION_PROMPT = `You are a fact-checker. Verify the claim using web search.
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
   "verdict": "TRUE" | "FALSE" | "MOSTLY_TRUE" | "MOSTLY_FALSE" | "UNVERIFIABLE",
   "confidence": 0.0 to 1.0,
-  "explanation": "Brief explanation with key evidence (1-2 sentences)",
-  "correction": "If false/mostly false, what is correct? null if true.",
+  "response": "One concise sentence: what's actually true. If wrong, state the correction directly. If you're confident, just state the fact. If uncertain, briefly note why (e.g. 'evidence is mixed', 'sources disagree', 'hard to verify').",
   "sources": [{"title": "short descriptive title", "url": "https://..."}]
 }
-
-For sources: pick the 2-3 most authoritative and relevant sources from your search results. Prefer primary sources (NASA, WHO, Wikipedia, peer-reviewed) over blog posts.
 
 Rules:
 - TRUE: factually correct
@@ -21,9 +16,9 @@ Rules:
 - MOSTLY_TRUE: approximately right, minor inaccuracies
 - MOSTLY_FALSE: kernel of truth but substantially wrong
 - UNVERIFIABLE: genuinely cannot determine after searching
-- Common myths should be FALSE even if widely believed
+- For sources: 2-3 most authoritative (prefer primary sources over blogs)
 
-The claim to verify:`;
+The claim:`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -85,5 +80,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  return res.status(200).json({ verdict: 'UNVERIFIABLE', confidence: 0, explanation: 'Failed to parse response', correction: null, sources: [] });
+  return res.status(200).json({ verdict: 'UNVERIFIABLE', confidence: 0, response: 'Unable to verify.', sources: [] });
 }

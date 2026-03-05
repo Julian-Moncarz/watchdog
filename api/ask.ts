@@ -1,16 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const QUESTION_PROMPT = `You are a fact-checker answering a direct question. Use web search to find the answer from authoritative sources.
+const QUESTION_PROMPT = `You are a fact-checker. Answer the question using web search.
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
-  "answer": "Clear, concise answer to the question",
+  "answer": "Clear, concise answer in 1-3 sentences. If you're confident, just state the answer. If uncertain, briefly note why (e.g. 'reports vary', 'not yet confirmed').",
   "confidence": 0.0 to 1.0,
-  "sources": [{"title": "short descriptive title", "url": "https://..."}],
-  "caveats": "Any important nuances or caveats, or null"
+  "sources": [{"title": "short descriptive title", "url": "https://..."}]
 }
 
-For sources: pick the 2-3 most authoritative and relevant sources from your search results. Prefer primary sources (NASA, WHO, Wikipedia, peer-reviewed) over blog posts.
+For sources: 2-3 most authoritative (prefer primary sources over blogs).
 
 The question:`;
 
@@ -68,5 +67,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  return res.status(200).json({ answer: 'Unable to process response', confidence: 0, sources: [], caveats: null });
+  return res.status(200).json({ answer: 'Unable to process response', confidence: 0, sources: [] });
 }

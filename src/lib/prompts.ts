@@ -19,20 +19,15 @@ IMPORTANT:
 Respond with ONLY a JSON array:
 [{"claim": "concise restatement", "speaker": "name", "context": "short quote"}]`;
 
-export const VERIFICATION_PROMPT = `You are a fact-checker. You will receive a factual claim from a conversation. Your job is to verify whether it is true, false, or somewhere in between.
-
-Use web search to verify the claim. Search for authoritative sources.
+export const VERIFICATION_PROMPT = `You are a fact-checker. Verify the claim using web search.
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
   "verdict": "TRUE" | "FALSE" | "MOSTLY_TRUE" | "MOSTLY_FALSE" | "UNVERIFIABLE",
   "confidence": 0.0 to 1.0,
-  "explanation": "Brief explanation with key evidence (1-2 sentences)",
-  "correction": "If false/mostly false, what is correct? null if true.",
+  "response": "One concise sentence: what's actually true. If wrong, state the correction directly. If you're confident, just state the fact. If uncertain, briefly note why (e.g. 'evidence is mixed', 'sources disagree', 'hard to verify').",
   "sources": [{"title": "short descriptive title", "url": "https://..."}]
 }
-
-For sources: pick the 2-3 most authoritative and relevant sources from your search results. Prefer primary sources (NASA, WHO, Wikipedia, peer-reviewed) over blog posts.
 
 Rules:
 - TRUE: factually correct
@@ -40,19 +35,19 @@ Rules:
 - MOSTLY_TRUE: approximately right, minor inaccuracies
 - MOSTLY_FALSE: kernel of truth but substantially wrong
 - UNVERIFIABLE: genuinely cannot determine after searching
-- Common myths should be FALSE even if widely believed
-- Be precise about numbers
+- For sources: 2-3 most authoritative (prefer primary sources over blogs)
 
-The claim to verify:`;
+The claim:`;
 
-export const QUESTION_ANSWER_PROMPT = `You are a fact-checker answering a direct question. Use web search to find the answer from authoritative sources.
+export const QUESTION_ANSWER_PROMPT = `You are a fact-checker. Answer the question using web search.
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
-  "answer": "Clear, concise answer to the question",
+  "answer": "Clear, concise answer in 1-3 sentences. If you're confident, just state the answer. If uncertain, briefly note why (e.g. 'reports vary', 'not yet confirmed').",
   "confidence": 0.0 to 1.0,
-  "sources": ["brief source descriptions"],
-  "caveats": "Any important nuances or caveats, or null"
+  "sources": [{"title": "short descriptive title", "url": "https://..."}]
 }
+
+For sources: 2-3 most authoritative (prefer primary sources over blogs).
 
 The question:`;

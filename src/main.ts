@@ -3,7 +3,7 @@ import type { CheckedClaim, VerificationResult, QuestionAnswer } from './lib/typ
 import { playChime, initAudio } from './lib/sound.ts';
 
 // --- State ---
-let isListening = false;
+let isRecording = false;
 let claims: CheckedClaim[] = [];
 let answers: QuestionAnswer[] = [];
 let expandedClaimId: string | null = null;
@@ -11,12 +11,15 @@ let transcriptBuffer: string[] = [];
 let processedText = '';
 let mediaRecorder: MediaRecorder | null = null;
 let dgSocket: WebSocket | null = null;
-let extractTimer: ReturnType<typeof setInterval> | null = null;
 let claimIdCounter = 0;
 
 // --- Utilities ---
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function stripCitations(s: string): string {
+  return s.replace(/<\/?cite[^>]*>/g, '');
 }
 
 function safeUrl(url: string): string {
@@ -30,10 +33,15 @@ function safeUrl(url: string): string {
 
 // --- Icons ---
 const icons = {
-  mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`,
-  stop: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`,
-  send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
+  send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`,
 };
+
+function hasResults(): boolean {
+  const flagged = claims.filter(c =>
+    c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
+  );
+  return flagged.length > 0 || answers.length > 0;
+}
 
 // --- Render ---
 function render(): void {
@@ -43,44 +51,29 @@ function render(): void {
   );
 
   app.innerHTML = `
+    ${isRecording ? '<div class="rec-dot"></div>' : ''}
     <main class="main">
-      ${!isListening && flaggedClaims.length === 0 && answers.length === 0
-        ? renderIdleState()
-        : renderActiveState(flaggedClaims)}
+      ${!hasResults()
+        ? `<div class="empty-state"><p class="empty-text">Listening.</p></div>`
+        : `<div class="feed">${answers.map(a => renderAnswer(a)).join('')}${flaggedClaims.map(c => renderClaim(c)).join('')}</div>`
+      }
     </main>
     <div class="bottom-bar">
       <div class="ask-input-wrap">
-        <input class="ask-input" type="text" placeholder="Check a fact..." id="ask-input" />
-        <button class="ask-submit" id="ask-submit" disabled>${icons.send}</button>
+        <input class="ask-input" type="text" placeholder="Ask" id="ask-input" />
+        <button class="ask-submit" id="ask-submit">${icons.send}</button>
       </div>
     </div>
   `;
   bindEvents();
 }
 
-function renderIdleState(): string {
+function renderSources(sources: { url: string; title: string }[], expanded: boolean): string {
+  if (!sources || sources.length === 0) return '';
   return `
-    <div class="center-stage">
-      <button class="listen-btn" id="listen-btn">
-        <span class="listen-icon">${icons.mic}</span>
-      </button>
-    </div>
-  `;
-}
-
-function renderActiveState(flaggedClaims: CheckedClaim[]): string {
-  return `
-    <div class="active-stage">
-      <button class="listen-btn-small ${isListening ? 'listening' : ''}" id="listen-btn">
-        <span class="listen-icon-small">${isListening ? icons.stop : icons.mic}</span>
-        ${isListening ? '<span class="pulse-ring"></span>' : ''}
-      </button>
-      ${isListening && flaggedClaims.length === 0 && answers.length === 0
-        ? '<p class="all-clear">All clear</p>'
-        : ''}
-      <div class="feed">
-        ${answers.map(a => renderAnswer(a)).join('')}
-        ${flaggedClaims.map(c => renderClaim(c)).join('')}
+    <div class="card-sources-wrap${expanded ? ' expanded' : ''}">
+      <div class="card-sources">
+        ${sources.map(s => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener" class="source-link">${esc(s.title)}</a>`).join('')}
       </div>
     </div>
   `;
@@ -88,53 +81,41 @@ function renderActiveState(flaggedClaims: CheckedClaim[]): string {
 
 function renderClaim(c: CheckedClaim): string {
   const v = c.verification;
-  const isExpanded = expandedClaimId === c.id;
   return `
     <div class="card ${v.verdict === 'FALSE' ? 'card-false' : 'card-dubious'}" data-claim-id="${c.id}">
-      <p class="card-claim">"${esc(c.claim)}"</p>
-      ${v.correction ? `<p class="card-correction">${esc(v.correction)}</p>` : ''}
-      ${isExpanded ? `
-        <p class="card-detail">${esc(v.explanation)}</p>
-        ${v.sources.length > 0 ? `
-          <div class="card-sources">
-            ${v.sources.map(s => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener" class="source-link">${esc(s.title)}</a>`).join('')}
-          </div>
-        ` : ''}
-      ` : ''}
+      <p class="card-claim">${esc(c.claim)}</p>
+      <p class="card-text">${esc(stripCitations(v.response))}</p>
+      ${renderSources(v.sources, expandedClaimId === c.id)}
     </div>
   `;
 }
 
 function renderAnswer(a: QuestionAnswer): string {
   return `
-    <div class="card card-answer">
-      <p class="card-claim">"${esc(a.question)}"</p>
-      <p class="card-correction">${esc(a.answer)}</p>
-      ${a.caveats ? `<p class="card-detail">${esc(a.caveats)}</p>` : ''}
-      ${a.sources && a.sources.length > 0 ? `
-        <div class="card-sources">
-          ${a.sources.map(s => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener" class="source-link">${esc(s.title)}</a>`).join('')}
-        </div>
-      ` : ''}
+    <div class="card card-answer" data-claim-id="${a.id}">
+      <p class="card-claim">${esc(a.question)}</p>
+      <p class="card-text">${esc(stripCitations(a.answer))}</p>
+      ${renderSources(a.sources || [], expandedClaimId === a.id)}
     </div>
   `;
 }
 
 // --- Events ---
 function bindEvents(): void {
-  const listenBtn = document.getElementById('listen-btn');
-  if (listenBtn) {
-    listenBtn.addEventListener('click', () => {
-      initAudio();
-      isListening ? stopListening() : startListening();
-    });
-  }
-
   document.querySelectorAll('.card[data-claim-id]').forEach(card => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.source-link')) return;
       const id = (card as HTMLElement).dataset.claimId!;
-      expandedClaimId = expandedClaimId === id ? null : id;
-      render();
+      const wrap = (card as HTMLElement).querySelector('.card-sources-wrap');
+      const isExpanding = expandedClaimId !== id;
+
+      // Collapse all
+      document.querySelectorAll('.card-sources-wrap.expanded').forEach(el => el.classList.remove('expanded'));
+      expandedClaimId = isExpanding ? id : null;
+
+      if (isExpanding && wrap) {
+        wrap.classList.add('expanded');
+      }
     });
   });
 
@@ -142,20 +123,20 @@ function bindEvents(): void {
   const askSubmit = document.getElementById('ask-submit') as HTMLButtonElement | null;
   if (askInput && askSubmit) {
     askInput.addEventListener('input', () => {
-      askSubmit.disabled = askInput.value.trim().length === 0;
+      askSubmit.classList.toggle('visible', askInput.value.trim().length > 0);
     });
     askInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && askInput.value.trim()) {
         submitQuestion(askInput.value.trim());
         askInput.value = '';
-        askSubmit.disabled = true;
+        askSubmit.classList.remove('visible');
       }
     });
     askSubmit.addEventListener('click', () => {
       if (askInput.value.trim()) {
         submitQuestion(askInput.value.trim());
         askInput.value = '';
-        askSubmit.disabled = true;
+        askSubmit.classList.remove('visible');
       }
     });
   }
@@ -163,25 +144,17 @@ function bindEvents(): void {
 
 // --- Deepgram streaming ---
 async function startListening(): Promise<void> {
-  isListening = true;
-  claims = [];
-  answers = [];
-  transcriptBuffer = [];
-  processedText = '';
-  render();
-
   try {
-    // Get Deepgram connection info from our API
     const resp = await fetch('/api/transcribe', { method: 'POST' });
     const config = await resp.json();
     if (!resp.ok || !config.params) {
       throw new Error(config.error || 'Failed to get transcription config');
     }
 
-    // Get mic access
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    isRecording = true;
+    render();
 
-    // Build WebSocket URL with params
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(config.params)) {
       params.set(k, String(v));
@@ -194,14 +167,13 @@ async function startListening(): Promise<void> {
       : new WebSocket(wsUrl);
 
     dgSocket.onopen = () => {
-      // Stream audio to Deepgram
       mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0 && dgSocket?.readyState === WebSocket.OPEN) {
           dgSocket.send(e.data);
         }
       };
-      mediaRecorder.start(250); // send chunks every 250ms
+      mediaRecorder.start(250);
     };
 
     dgSocket.onmessage = (event) => {
@@ -209,11 +181,11 @@ async function startListening(): Promise<void> {
       if (data.type === 'Results' && data.is_final) {
         const transcript = data.channel?.alternatives?.[0]?.transcript;
         if (transcript && transcript.trim()) {
-          // Get speaker if diarization is available
           const words = data.channel?.alternatives?.[0]?.words ?? [];
           const speaker = words.length > 0 && words[0].speaker !== undefined
             ? `Speaker ${words[0].speaker}`
             : 'Speaker';
+          console.log('[transcript]', `${speaker}: ${transcript}`);
           transcriptBuffer.push(`[${speaker}]: ${transcript}`);
         }
       }
@@ -230,38 +202,13 @@ async function startListening(): Promise<void> {
       stream.getTracks().forEach(t => t.stop());
     };
 
-    // Extract claims every 10 seconds from new transcript text
-    extractTimer = setInterval(() => {
+    setInterval(() => {
       processNewTranscript();
     }, 10_000);
 
   } catch (err) {
     console.error('Failed to start listening:', err);
-    isListening = false;
-    render();
   }
-}
-
-function stopListening(): void {
-  isListening = false;
-
-  // Process any remaining transcript
-  processNewTranscript();
-
-  if (extractTimer) {
-    clearInterval(extractTimer);
-    extractTimer = null;
-  }
-  if (dgSocket) {
-    dgSocket.close();
-    dgSocket = null;
-  }
-  if (mediaRecorder?.state === 'recording') {
-    mediaRecorder.stop();
-  }
-  mediaRecorder = null;
-
-  render();
 }
 
 // --- Claim pipeline ---
@@ -271,18 +218,19 @@ async function processNewTranscript(): Promise<void> {
   if (!newText) return;
 
   processedText = fullText;
+  console.log('[extract input]', newText);
 
   try {
-    // Stage 1: Extract claims
     const extractResp = await fetch('/api/extract', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transcript: newText }),
     });
-    const { claims: extracted } = await extractResp.json();
+    const extractData = await extractResp.json();
+    console.log('[extract response]', extractData);
+    const extracted = extractData.claims;
     if (!extracted || extracted.length === 0) return;
 
-    // Stage 2: Verify each claim in parallel
     const verifyPromises = extracted.map(async (ec: { claim: string; speaker: string; context: string }) => {
       const vResp = await fetch('/api/verify', {
         method: 'POST',
@@ -290,8 +238,9 @@ async function processNewTranscript(): Promise<void> {
         body: JSON.stringify({ claim: ec.claim, context: ec.context }),
       });
       const verification: VerificationResult = await vResp.json();
-      // Default sources to empty array if not returned
       if (!verification.sources) verification.sources = [];
+      if (!verification.response) verification.response = '';
+      console.log('[verdict]', ec.claim, '→', verification.verdict, verification.response);
 
       const checked: CheckedClaim = {
         id: String(++claimIdCounter),
@@ -311,6 +260,7 @@ async function processNewTranscript(): Promise<void> {
       const v = c.verification.verdict;
       if (v === 'FALSE' || v === 'MOSTLY_FALSE') {
         playChime('false');
+        navigator.vibrate?.(10);
       }
     }
     render();
@@ -322,7 +272,6 @@ async function processNewTranscript(): Promise<void> {
 
 // --- Ask ---
 async function submitQuestion(question: string): Promise<void> {
-  // Show placeholder immediately
   const placeholderId = `q${Date.now()}`;
   answers = [{
     id: placeholderId,
@@ -330,7 +279,6 @@ async function submitQuestion(question: string): Promise<void> {
     answer: 'Searching...',
     confidence: 0,
     sources: [],
-    caveats: null,
     timestamp: Date.now(),
   }, ...answers];
   render();
@@ -343,13 +291,11 @@ async function submitQuestion(question: string): Promise<void> {
     });
     const result = await resp.json();
 
-    // Replace placeholder
     answers = answers.map(a => a.id === placeholderId ? {
       ...a,
       answer: result.answer || 'No answer found.',
       confidence: result.confidence || 0,
       sources: result.sources || [],
-      caveats: result.caveats || null,
     } : a);
     render();
   } catch {
@@ -361,9 +307,11 @@ async function submitQuestion(question: string): Promise<void> {
   }
 }
 
-// --- SW ---
+// --- Init ---
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 render();
+initAudio();
+startListening();

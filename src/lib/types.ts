@@ -14,8 +14,7 @@ export interface Source {
 export interface VerificationResult {
   verdict: Verdict;
   confidence: number;
-  explanation: string;
-  correction: string | null;
+  response: string;
   sources: Source[];
 }
 
@@ -31,7 +30,6 @@ export interface QuestionAnswer {
   answer: string;
   confidence: number;
   sources: Source[];
-  caveats: string | null;
   timestamp: number;
 }
 

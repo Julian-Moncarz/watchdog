@@ -49,7 +49,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   const data = await response.json();
-  const text = data.content?.[0]?.text ?? '[]';
+  let text = data.content?.[0]?.text ?? '[]';
+
+  // Strip markdown fences if present
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) text = fenceMatch[1].trim();
 
   try {
     const claims = JSON.parse(text);
