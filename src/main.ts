@@ -166,7 +166,9 @@ async function startListening(): Promise<void> {
     const wsUrl = `${config.url}?${params.toString()}`;
     const key = config.key || '';
 
-    dgSocket = new WebSocket(wsUrl, ['token', key]);
+    dgSocket = key
+      ? new WebSocket(wsUrl, ['token', key])
+      : new WebSocket(wsUrl);
 
     dgSocket.onopen = () => {
       // Stream audio to Deepgram
