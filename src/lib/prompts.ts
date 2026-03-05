@@ -56,7 +56,7 @@ Below is the transcript of the conversation so far, and any corrections Watchdog
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
-  "answer": "Clear, concise answer in 1-3 sentences.",
+  "answer": "Answer thoroughly. Be as long as needed to fully address the question.",
   "confidence": 0.0 to 1.0,
   "sources": []
 }`;
