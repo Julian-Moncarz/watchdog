@@ -1,14 +1,18 @@
 import './style.css';
-import type { CheckedClaim, QuestionAnswer } from './lib/types.ts';
-import { mockClaims, mockAnswer } from './lib/mockData.ts';
+import type { CheckedClaim, VerificationResult, QuestionAnswer } from './lib/types.ts';
 import { playChime, initAudio } from './lib/sound.ts';
 
 // --- State ---
 let isListening = false;
 let claims: CheckedClaim[] = [];
 let answers: QuestionAnswer[] = [];
-let _pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
 let expandedClaimId: string | null = null;
+let transcriptBuffer: string[] = [];
+let processedText = '';
+let mediaRecorder: MediaRecorder | null = null;
+let dgSocket: WebSocket | null = null;
+let extractTimer: ReturnType<typeof setInterval> | null = null;
+let claimIdCounter = 0;
 
 // --- Icons ---
 const icons = {
@@ -20,8 +24,6 @@ const icons = {
 // --- Render ---
 function render(): void {
   const app = document.getElementById('app')!;
-
-  // Only show false/dubious claims — true claims don't need attention
   const flaggedClaims = claims.filter(c =>
     c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
   );
@@ -32,7 +34,6 @@ function render(): void {
         ? renderIdleState()
         : renderActiveState(flaggedClaims)}
     </main>
-
     <div class="bottom-bar">
       <div class="ask-input-wrap">
         <input class="ask-input" type="text" placeholder="Check a fact..." id="ask-input" />
@@ -40,7 +41,6 @@ function render(): void {
       </div>
     </div>
   `;
-
   bindEvents();
 }
 
@@ -61,11 +61,9 @@ function renderActiveState(flaggedClaims: CheckedClaim[]): string {
         <span class="listen-icon-small">${isListening ? icons.stop : icons.mic}</span>
         ${isListening ? '<span class="pulse-ring"></span>' : ''}
       </button>
-
       ${isListening && flaggedClaims.length === 0 && answers.length === 0
         ? '<p class="all-clear">All clear</p>'
         : ''}
-
       <div class="feed">
         ${answers.map(a => renderAnswer(a)).join('')}
         ${flaggedClaims.map(c => renderClaim(c)).join('')}
@@ -112,7 +110,6 @@ function bindEvents(): void {
     });
   }
 
-  // Tap claim to expand/collapse
   document.querySelectorAll('.card[data-claim-id]').forEach(card => {
     card.addEventListener('click', () => {
       const id = (card as HTMLElement).dataset.claimId!;
@@ -123,7 +120,6 @@ function bindEvents(): void {
 
   const askInput = document.getElementById('ask-input') as HTMLInputElement | null;
   const askSubmit = document.getElementById('ask-submit') as HTMLButtonElement | null;
-
   if (askInput && askSubmit) {
     askInput.addEventListener('input', () => {
       askSubmit.disabled = askInput.value.trim().length === 0;
@@ -145,43 +141,199 @@ function bindEvents(): void {
   }
 }
 
-// --- Actions ---
-function startListening(): void {
+// --- Deepgram streaming ---
+async function startListening(): Promise<void> {
   isListening = true;
   claims = [];
   answers = [];
+  transcriptBuffer = [];
+  processedText = '';
   render();
 
-  // Demo: drip in mock claims
-  mockClaims.forEach((claim, i) => {
-    const t = setTimeout(() => {
-      claims = [claim, ...claims];
-      const v = claim.verification.verdict;
-      if (v === 'FALSE' || v === 'MOSTLY_FALSE') {
-        playChime('false');
+  try {
+    // Get Deepgram connection info from our API
+    const resp = await fetch('/api/transcribe', { method: 'POST' });
+    const config = await resp.json();
+
+    // Get mic access
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    // Build WebSocket URL with params
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(config.params)) {
+      params.set(k, String(v));
+    }
+    const wsUrl = `${config.url}?${params.toString()}`;
+    const key = config.key || '';
+
+    dgSocket = new WebSocket(wsUrl, ['token', key]);
+
+    dgSocket.onopen = () => {
+      // Stream audio to Deepgram
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0 && dgSocket?.readyState === WebSocket.OPEN) {
+          dgSocket.send(e.data);
+        }
+      };
+      mediaRecorder.start(250); // send chunks every 250ms
+    };
+
+    dgSocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'Results' && data.is_final) {
+        const transcript = data.channel?.alternatives?.[0]?.transcript;
+        if (transcript && transcript.trim()) {
+          // Get speaker if diarization is available
+          const words = data.channel?.alternatives?.[0]?.words ?? [];
+          const speaker = words.length > 0 && words[0].speaker !== undefined
+            ? `Speaker ${words[0].speaker}`
+            : 'Speaker';
+          transcriptBuffer.push(`[${speaker}]: ${transcript}`);
+        }
       }
-      render();
-    }, (i + 1) * 2000);
-    _pendingTimeouts.push(t);
-  });
+    };
+
+    dgSocket.onerror = () => {
+      console.error('Deepgram WebSocket error');
+    };
+
+    dgSocket.onclose = () => {
+      if (mediaRecorder?.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    // Extract claims every 10 seconds from new transcript text
+    extractTimer = setInterval(() => {
+      processNewTranscript();
+    }, 10_000);
+
+  } catch (err) {
+    console.error('Failed to start listening:', err);
+    isListening = false;
+    render();
+  }
 }
 
 function stopListening(): void {
   isListening = false;
-  _pendingTimeouts.forEach(clearTimeout);
-  _pendingTimeouts = [];
+
+  // Process any remaining transcript
+  processNewTranscript();
+
+  if (extractTimer) {
+    clearInterval(extractTimer);
+    extractTimer = null;
+  }
+  if (dgSocket) {
+    dgSocket.close();
+    dgSocket = null;
+  }
+  if (mediaRecorder?.state === 'recording') {
+    mediaRecorder.stop();
+  }
+  mediaRecorder = null;
+
   render();
 }
 
-function submitQuestion(question: string): void {
-  const answer: QuestionAnswer = {
-    ...mockAnswer,
-    id: `q${Date.now()}`,
+// --- Claim pipeline ---
+async function processNewTranscript(): Promise<void> {
+  const fullText = transcriptBuffer.join('\n');
+  const newText = fullText.slice(processedText.length).trim();
+  if (!newText) return;
+
+  processedText = fullText;
+
+  try {
+    // Stage 1: Extract claims
+    const extractResp = await fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: newText }),
+    });
+    const { claims: extracted } = await extractResp.json();
+    if (!extracted || extracted.length === 0) return;
+
+    // Stage 2: Verify each claim in parallel
+    const verifyPromises = extracted.map(async (ec: { claim: string; speaker: string; context: string }) => {
+      const vResp = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim: ec.claim, context: ec.context }),
+      });
+      const verification: VerificationResult = await vResp.json();
+      // Default sources to empty array if not returned
+      if (!verification.sources) verification.sources = [];
+
+      const checked: CheckedClaim = {
+        id: String(++claimIdCounter),
+        claim: ec.claim,
+        speaker: ec.speaker,
+        context: ec.context,
+        verification,
+        timestamp: Date.now(),
+      };
+      return checked;
+    });
+
+    const verified = await Promise.all(verifyPromises);
+
+    for (const c of verified) {
+      claims = [c, ...claims];
+      const v = c.verification.verdict;
+      if (v === 'FALSE' || v === 'MOSTLY_FALSE') {
+        playChime('false');
+      }
+    }
+    render();
+
+  } catch (err) {
+    console.error('Pipeline error:', err);
+  }
+}
+
+// --- Ask ---
+async function submitQuestion(question: string): Promise<void> {
+  // Show placeholder immediately
+  const placeholderId = `q${Date.now()}`;
+  answers = [{
+    id: placeholderId,
     question,
+    answer: 'Searching...',
+    confidence: 0,
+    sources: [],
+    caveats: null,
     timestamp: Date.now(),
-  };
-  answers = [answer, ...answers];
+  }, ...answers];
   render();
+
+  try {
+    const resp = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+    const result = await resp.json();
+
+    // Replace placeholder
+    answers = answers.map(a => a.id === placeholderId ? {
+      ...a,
+      answer: result.answer || 'No answer found.',
+      confidence: result.confidence || 0,
+      sources: result.sources || [],
+      caveats: result.caveats || null,
+    } : a);
+    render();
+  } catch {
+    answers = answers.map(a => a.id === placeholderId ? {
+      ...a,
+      answer: 'Failed to get answer. Try again.',
+    } : a);
+    render();
+  }
 }
 
 // --- SW ---
