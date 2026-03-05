@@ -1,0 +1,39 @@
+{
+  "id": "05_health_fitness_myths",
+  "description": "Gym conversation full of health myths and nutrition misinformation mixed with real facts.",
+  "speakers": ["Chris", "Dana"],
+  "transcript": [
+    {"speaker": "Chris", "text": "You know, you only use about 10% of your brain. Imagine if we could unlock the other 90%."},
+    {"speaker": "Dana", "text": "That's actually completely false. Brain imaging shows we use virtually all parts of our brain, just not all simultaneously."},
+    {"speaker": "Chris", "text": "Huh. Well, at least we know that cracking your knuckles causes arthritis."},
+    {"speaker": "Dana", "text": "Also a myth. Multiple studies including one by a guy who cracked knuckles on only one hand for 60 years showed no difference in arthritis rates."},
+    {"speaker": "Chris", "text": "Fair enough. But you do need to drink 8 glasses of water a day, that's been proven."},
+    {"speaker": "Dana", "text": "That one has no strong scientific basis either. Water needs vary by person, activity, and climate. The 8 glasses thing has no clear origin in medical literature."},
+    {"speaker": "Chris", "text": "Okay but here's one I'm sure about. Vitamin C prevents colds. Linus Pauling won a Nobel Prize for proving that."},
+    {"speaker": "Dana", "text": "Pauling won two Nobel Prizes, but neither was for vitamin C research. He won the Chemistry prize in 1954 and the Peace Prize in 1962. His vitamin C claims were largely unsupported by evidence."},
+    {"speaker": "Chris", "text": "Well at least protein. You need at least 1 gram per pound of body weight if you're lifting."},
+    {"speaker": "Dana", "text": "The actual research suggests 0.7 to 1 gram per pound is sufficient for muscle building. The 1g per pound rule is a simplification but roughly in the right range."},
+    {"speaker": "Chris", "text": "Eating fat makes you fat though, right? That's just thermodynamics."},
+    {"speaker": "Dana", "text": "No, weight gain is about total caloric surplus, not fat intake specifically. The low-fat diet craze of the 1990s was based on flawed science."},
+    {"speaker": "Chris", "text": "The human heart beats about 100,000 times per day. At least that one is true."},
+    {"speaker": "Dana", "text": "That one is actually roughly correct. Average resting heart rate is 60-100 bpm, so about 100,000 beats per day."},
+    {"speaker": "Chris", "text": "And muscles turn into fat if you stop working out. I've seen it happen to retired athletes."},
+    {"speaker": "Dana", "text": "Muscle and fat are completely different tissue types. Muscle can't turn into fat. What happens is muscle atrophies and people gain fat from maintained eating habits with reduced activity."},
+    {"speaker": "Chris", "text": "The recommended daily calorie intake is 2,000 calories. That's what it says on every nutrition label."},
+    {"speaker": "Dana", "text": "2,000 is a rough general guideline used for food labels, but actual needs vary wildly. It was chosen by the FDA partly because it was a round number that worked for most adults. Active men might need 2,500 to 3,000."}
+  ],
+  "expected_claims": [
+    {"text": "You only use about 10% of your brain", "speaker": "Chris", "verdict": "FALSE", "correction": "We use virtually all parts of our brain; this is a persistent myth"},
+    {"text": "Cracking knuckles causes arthritis", "speaker": "Chris", "verdict": "FALSE", "correction": "Studies show no link between knuckle cracking and arthritis"},
+    {"text": "A guy cracked knuckles on only one hand for 60 years with no arthritis difference", "speaker": "Dana", "verdict": "TRUE", "correction": null},
+    {"text": "You need to drink 8 glasses of water a day", "speaker": "Chris", "verdict": "FALSE", "correction": "No strong scientific basis; needs vary by individual"},
+    {"text": "Vitamin C prevents colds", "speaker": "Chris", "verdict": "FALSE", "correction": "Regular vitamin C supplementation does not prevent colds in general population; may slightly reduce duration"},
+    {"text": "Linus Pauling won a Nobel Prize for proving vitamin C prevents colds", "speaker": "Chris", "verdict": "FALSE", "correction": "Pauling won Chemistry 1954 and Peace 1962; his vitamin C claims were not well-supported"},
+    {"text": "Pauling won two Nobel Prizes - Chemistry 1954 and Peace 1962", "speaker": "Dana", "verdict": "TRUE", "correction": null},
+    {"text": "You need at least 1 gram of protein per pound of body weight for lifting", "speaker": "Chris", "verdict": "APPROXIMATELY_TRUE", "correction": "Research supports 0.7-1g per pound; 1g is a reasonable upper guideline"},
+    {"text": "Eating fat makes you fat", "speaker": "Chris", "verdict": "FALSE", "correction": "Weight gain is about caloric surplus, not fat intake specifically"},
+    {"text": "The human heart beats about 100,000 times per day", "speaker": "Chris", "verdict": "TRUE", "correction": null},
+    {"text": "Muscles turn into fat if you stop working out", "speaker": "Chris", "verdict": "FALSE", "correction": "Muscle and fat are different tissues; muscle atrophies and fat may be gained separately"},
+    {"text": "The recommended daily calorie intake is 2,000 calories", "speaker": "Chris", "verdict": "APPROXIMATELY_TRUE", "correction": "2,000 is the FDA general guideline for food labels; actual needs vary"}
+  ]
+}
