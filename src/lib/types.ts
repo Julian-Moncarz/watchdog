@@ -6,16 +6,11 @@ export interface ExtractedClaim {
 
 export type Verdict = "TRUE" | "FALSE" | "MOSTLY_TRUE" | "MOSTLY_FALSE" | "UNVERIFIABLE";
 
-export interface Source {
-  title: string;
-  url: string;
-}
-
 export interface VerificationResult {
   verdict: Verdict;
   confidence: number;
   response: string;
-  sources: Source[];
+  sources: string[];
 }
 
 export interface CheckedClaim extends ExtractedClaim {
@@ -29,7 +24,7 @@ export interface QuestionAnswer {
   question: string;
   answer: string;
   confidence: number;
-  sources: Source[];
+  sources: string[];
   timestamp: number;
 }
 

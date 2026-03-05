@@ -12,6 +12,10 @@ let processedText = '';
 let mediaRecorder: MediaRecorder | null = null;
 let dgSocket: WebSocket | null = null;
 let claimIdCounter = 0;
+let triggerPending = false;
+let triggerSpeaker = '';
+
+const TRIGGER = /\bwatchdog\b[,.:!?]?\s*/i;
 
 // --- Utilities ---
 function esc(s: string): string {
@@ -31,16 +35,54 @@ function safeUrl(url: string): string {
   }
 }
 
-// --- Icons ---
-const icons = {
-  send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`,
-};
+function domain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
 
 function hasResults(): boolean {
   const flagged = claims.filter(c =>
     c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
   );
   return flagged.length > 0 || answers.length > 0;
+}
+
+function getCorrectionsText(): string {
+  const flagged = claims.filter(c =>
+    c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
+  );
+  if (flagged.length === 0) return '';
+  return flagged.map(c => `Claim: "${c.claim}" → ${c.verification.verdict}: ${c.verification.response}`).join('\n');
+}
+
+// --- Clipboard ---
+function copyTranscript(): void {
+  const text = transcriptBuffer.join('\n');
+  if (!text) {
+    showNotice('Nothing to copy yet.');
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    showNotice('Transcript copied.');
+  }).catch(() => {
+    showNotice('Could not copy.');
+  });
+}
+
+function showNotice(msg: string): void {
+  const placeholderId = `n${Date.now()}`;
+  answers = [{
+    id: placeholderId,
+    question: 'copy transcript',
+    answer: msg,
+    confidence: 1,
+    sources: [],
+    timestamp: Date.now(),
+  }, ...answers];
+  render();
 }
 
 // --- Render ---
@@ -50,30 +92,35 @@ function render(): void {
     c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
   );
 
+  const emptyState = app.querySelector('.empty-state');
+  if (emptyState && hasResults()) {
+    emptyState.classList.add('fading');
+    setTimeout(() => renderInner(app, flaggedClaims), 300);
+    return;
+  }
+
+  renderInner(app, flaggedClaims);
+}
+
+function renderInner(app: HTMLElement, flaggedClaims: CheckedClaim[]): void {
   app.innerHTML = `
     ${isRecording ? '<div class="rec-dot"></div>' : ''}
     <main class="main">
       ${!hasResults()
-        ? `<div class="empty-state"><p class="empty-text">Listening.</p></div>`
+        ? `<div class="empty-state"><p class="empty-text" id="rotating-hint"></p></div>`
         : `<div class="feed">${answers.map(a => renderAnswer(a)).join('')}${flaggedClaims.map(c => renderClaim(c)).join('')}</div>`
       }
     </main>
-    <div class="bottom-bar">
-      <div class="ask-input-wrap">
-        <input class="ask-input" type="text" placeholder="Ask" id="ask-input" />
-        <button class="ask-submit" id="ask-submit">${icons.send}</button>
-      </div>
-    </div>
   `;
   bindEvents();
 }
 
-function renderSources(sources: { url: string; title: string }[], expanded: boolean): string {
+function renderSources(sources: string[], expanded: boolean): string {
   if (!sources || sources.length === 0) return '';
   return `
     <div class="card-sources-wrap${expanded ? ' expanded' : ''}">
       <div class="card-sources">
-        ${sources.map(s => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener" class="source-link">${esc(s.title)}</a>`).join('')}
+        ${sources.map(s => `<a href="${safeUrl(s)}" target="_blank" rel="noopener" class="source-link">${esc(domain(s))}</a>`).join('')}
       </div>
     </div>
   `;
@@ -82,7 +129,7 @@ function renderSources(sources: { url: string; title: string }[], expanded: bool
 function renderClaim(c: CheckedClaim): string {
   const v = c.verification;
   return `
-    <div class="card ${v.verdict === 'FALSE' ? 'card-false' : 'card-dubious'}" data-claim-id="${c.id}">
+    <div class="card" data-claim-id="${c.id}">
       <p class="card-claim">${esc(c.claim)}</p>
       <p class="card-text">${esc(stripCitations(v.response))}</p>
       ${renderSources(v.sources, expandedClaimId === c.id)}
@@ -92,7 +139,7 @@ function renderClaim(c: CheckedClaim): string {
 
 function renderAnswer(a: QuestionAnswer): string {
   return `
-    <div class="card card-answer" data-claim-id="${a.id}">
+    <div class="card" data-claim-id="${a.id}">
       <p class="card-claim">${esc(a.question)}</p>
       <p class="card-text">${esc(stripCitations(a.answer))}</p>
       ${renderSources(a.sources || [], expandedClaimId === a.id)}
@@ -109,7 +156,6 @@ function bindEvents(): void {
       const wrap = (card as HTMLElement).querySelector('.card-sources-wrap');
       const isExpanding = expandedClaimId !== id;
 
-      // Collapse all
       document.querySelectorAll('.card-sources-wrap.expanded').forEach(el => el.classList.remove('expanded'));
       expandedClaimId = isExpanding ? id : null;
 
@@ -118,27 +164,27 @@ function bindEvents(): void {
       }
     });
   });
+}
 
-  const askInput = document.getElementById('ask-input') as HTMLInputElement | null;
-  const askSubmit = document.getElementById('ask-submit') as HTMLButtonElement | null;
-  if (askInput && askSubmit) {
-    askInput.addEventListener('input', () => {
-      askSubmit.classList.toggle('visible', askInput.value.trim().length > 0);
+// --- Handle watchdog command ---
+async function handleCommand(question: string, speaker: string): Promise<void> {
+  try {
+    const resp = await fetch('/api/classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: question }),
     });
-    askInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && askInput.value.trim()) {
-        submitQuestion(askInput.value.trim());
-        askInput.value = '';
-        askSubmit.classList.remove('visible');
-      }
-    });
-    askSubmit.addEventListener('click', () => {
-      if (askInput.value.trim()) {
-        submitQuestion(askInput.value.trim());
-        askInput.value = '';
-        askSubmit.classList.remove('visible');
-      }
-    });
+    const { intent } = await resp.json();
+    console.log('[classify]', question, '→', intent);
+
+    if (intent === 'clipboard') {
+      copyTranscript();
+    } else {
+      submitQuestion(question, speaker, intent === 'transcript');
+    }
+  } catch {
+    // Fallback: treat as web search question
+    submitQuestion(question, speaker, false);
   }
 }
 
@@ -186,6 +232,26 @@ async function startListening(): Promise<void> {
             ? `Speaker ${words[0].speaker}`
             : 'Speaker';
           console.log('[transcript]', `${speaker}: ${transcript}`);
+
+          if (TRIGGER.test(transcript)) {
+            const after = transcript.replace(TRIGGER, '').replace(/^[.,!?\s]+/, '').trim();
+            if (after.length > 3) {
+              console.log('[watchdog command]', after, `(${speaker})`);
+              handleCommand(after, speaker);
+              triggerPending = false;
+            } else {
+              triggerPending = true;
+              triggerSpeaker = speaker;
+            }
+          } else if (triggerPending) {
+            const question = transcript.replace(/^[.,!?\s]+/, '').trim();
+            if (question.length > 3) {
+              console.log('[watchdog command]', question, `(${triggerSpeaker})`);
+              handleCommand(question, triggerSpeaker);
+            }
+            triggerPending = false;
+          }
+
           transcriptBuffer.push(`[${speaker}]: ${transcript}`);
         }
       }
@@ -271,7 +337,7 @@ async function processNewTranscript(): Promise<void> {
 }
 
 // --- Ask ---
-async function submitQuestion(question: string): Promise<void> {
+async function submitQuestion(question: string, speaker: string, withTranscript: boolean): Promise<void> {
   const placeholderId = `q${Date.now()}`;
   answers = [{
     id: placeholderId,
@@ -283,11 +349,18 @@ async function submitQuestion(question: string): Promise<void> {
   }, ...answers];
   render();
 
+  const body: Record<string, string> = { question, speaker };
+  if (withTranscript && transcriptBuffer.length > 0) {
+    body.transcript = transcriptBuffer.join('\n');
+    const corrections = getCorrectionsText();
+    if (corrections) body.corrections = corrections;
+  }
+
   try {
     const resp = await fetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(body),
     });
     const result = await resp.json();
 
@@ -312,6 +385,37 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
+const hints = [
+  'who founded Anthropic?',
+  'how many parameters is GPT-4?',
+  'when did AlphaGo beat Lee Sedol?',
+  'summarize our points so far.',
+  'when was the transformer paper?',
+  'copy transcript to clipboard.',
+  'what was my main argument?',
+  'how much did OpenAI raise?',
+];
+let hintIndex = 0;
+let hintInterval: ReturnType<typeof setInterval> | null = null;
+
+function startHintRotation(): void {
+  const el = document.getElementById('rotating-hint');
+  if (!el) return;
+  el.innerHTML = `<em>Watchdog,<br>${esc(hints[0])}</em>`;
+
+  hintInterval = setInterval(() => {
+    const el = document.getElementById('rotating-hint');
+    if (!el) { clearInterval(hintInterval!); return; }
+    el.classList.add('fading-text');
+    setTimeout(() => {
+      hintIndex = (hintIndex + 1) % hints.length;
+      el.innerHTML = `<em>Watchdog,<br>${esc(hints[hintIndex])}</em>`;
+      el.classList.remove('fading-text');
+    }, 300);
+  }, 6000);
+}
+
 render();
+startHintRotation();
 initAudio();
 startListening();

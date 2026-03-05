@@ -4,7 +4,7 @@
   --bg: #ffffff;
   --text: #1a1a1a;
   --text-dim: #999999;
-  --border: #f0f0f0;
+  --border: #f5f5f5;
   --font: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
@@ -28,7 +28,6 @@ body {
 }
 
 button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
-input { font: inherit; border: none; background: none; color: inherit; outline: none; }
 
 #app {
   max-width: 480px;
@@ -40,7 +39,28 @@ input { font: inherit; border: none; background: none; color: inherit; outline: 
 
 .main {
   flex: 1;
-  padding-bottom: 72px;
+}
+
+/* Edge fades */
+.main::before,
+.main::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 3rem;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.main::before {
+  top: 0;
+  background: linear-gradient(var(--bg), transparent);
+}
+
+.main::after {
+  bottom: 0;
+  background: linear-gradient(transparent, var(--bg));
 }
 
 /* Recording indicator */
@@ -58,20 +78,40 @@ input { font: inherit; border: none; background: none; color: inherit; outline: 
 /* Empty state */
 .empty-state {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  min-height: calc(100dvh - 72px);
-  padding-top: 38vh;
+  min-height: 100dvh;
+  padding-bottom: 12vh;
+  gap: 0.5rem;
 }
 
 .empty-text {
-  font-size: 0.875rem;
+  font-size: 1.125rem;
   color: var(--text-dim);
+  animation: fade-in 0.3s ease both;
+  text-align: center;
+  line-height: 1.5;
+  padding: 0 2rem;
+  transition: opacity 0.3s ease;
+}
+
+.empty-text.fading-text {
+  opacity: 0;
+}
+
+.empty-state.fading .empty-text {
+  animation: fade-out 0.3s ease both;
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 /* Feed */
 .feed {
-  padding: 2rem 1.5rem 0;
+  padding: 3.5rem 1.5rem 3.5rem;
 }
 
 /* Cards */
@@ -109,7 +149,6 @@ input { font: inherit; border: none; background: none; color: inherit; outline: 
   line-height: 1.5;
 }
 
-
 .card-sources-wrap {
   display: grid;
   grid-template-rows: 0fr;
@@ -139,65 +178,3 @@ input { font: inherit; border: none; background: none; color: inherit; outline: 
 }
 
 .source-link:hover { color: var(--text); }
-
-/* Bottom bar */
-.bottom-bar {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
-  padding: 0.75rem 1.5rem;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
-  z-index: 10;
-}
-
-.ask-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.ask-input {
-  flex: 1;
-  font-size: 0.875rem;
-  min-width: 0;
-  padding: 0.5rem 0;
-}
-
-.ask-input::placeholder {
-  color: var(--text-dim);
-  transition: opacity 0.2s ease;
-}
-
-.ask-input:focus::placeholder {
-  opacity: 0.4;
-}
-
-.ask-submit {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: opacity 0.2s ease;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.ask-submit.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.ask-submit svg { width: 16px; height: 16px; color: var(--text); }
-
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .bottom-bar {
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
-  }
-}
