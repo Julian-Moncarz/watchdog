@@ -12,8 +12,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Deepgram API key not configured' });
   }
 
+  const wsParams = {
+    model: 'nova-3',
+    language: 'en',
+    smart_format: true,
+    diarize: true,
+    interim_results: true,
+    utterance_end_ms: 1500,
+  };
+
+  // Get project ID first
+  const projResp = await fetch('https://api.deepgram.com/v1/projects', {
+    headers: { 'Authorization': `Token ${apiKey}` },
+  });
+
+  if (!projResp.ok) {
+    return res.status(500).json({ error: 'Failed to fetch Deepgram projects' });
+  }
+
+  const projData = await projResp.json();
+  const projectId = projData.projects?.[0]?.project_id;
+  if (!projectId) {
+    return res.status(500).json({ error: 'No Deepgram project found' });
+  }
+
   // Create a temporary API key scoped to usage:write (transcription only)
-  const response = await fetch('https://api.deepgram.com/v1/keys', {
+  const keyResp = await fetch(`https://api.deepgram.com/v1/projects/${projectId}/keys`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -26,32 +50,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }),
   });
 
-  if (!response.ok) {
-    // Fallback: return connection details for client-side WebSocket
-    return res.status(200).json({
-      url: 'wss://api.deepgram.com/v1/listen',
-      params: {
-        model: 'nova-3',
-        language: 'en',
-        smart_format: true,
-        diarize: true,
-        interim_results: true,
-        utterance_end_ms: 1500,
-      },
-    });
+  if (!keyResp.ok) {
+    return res.status(500).json({ error: 'Failed to create temporary Deepgram key' });
   }
 
-  const data = await response.json();
+  const keyData = await keyResp.json();
   return res.status(200).json({
-    key: data.key,
+    key: keyData.key,
     url: 'wss://api.deepgram.com/v1/listen',
-    params: {
-      model: 'nova-3',
-      language: 'en',
-      smart_format: true,
-      diarize: true,
-      interim_results: true,
-      utterance_end_ms: 1500,
-    },
+    params: wsParams,
   });
 }
