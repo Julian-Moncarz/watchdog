@@ -30,9 +30,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  }
+
   const { claim, context } = req.body;
-  if (!claim) {
+  if (!claim || typeof claim !== 'string') {
     return res.status(400).json({ error: 'claim is required' });
+  }
+  if (claim.length > 2000) {
+    return res.status(400).json({ error: 'claim too long (max 2000 chars)' });
+  }
+  if (context && (typeof context !== 'string' || context.length > 5000)) {
+    return res.status(400).json({ error: 'context too long (max 5000 chars)' });
   }
 
   const userMessage = context

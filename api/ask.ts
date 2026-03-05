@@ -17,9 +17,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  }
+
   const { question } = req.body;
-  if (!question) {
+  if (!question || typeof question !== 'string') {
     return res.status(400).json({ error: 'question is required' });
+  }
+  if (question.length > 2000) {
+    return res.status(400).json({ error: 'question too long (max 2000 chars)' });
   }
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {

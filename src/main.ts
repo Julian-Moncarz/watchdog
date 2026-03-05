@@ -14,6 +14,20 @@ let dgSocket: WebSocket | null = null;
 let extractTimer: ReturnType<typeof setInterval> | null = null;
 let claimIdCounter = 0;
 
+// --- Utilities ---
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function safeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : '#';
+  } catch {
+    return '#';
+  }
+}
+
 // --- Icons ---
 const icons = {
   mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`,
@@ -77,13 +91,13 @@ function renderClaim(c: CheckedClaim): string {
   const isExpanded = expandedClaimId === c.id;
   return `
     <div class="card ${v.verdict === 'FALSE' ? 'card-false' : 'card-dubious'}" data-claim-id="${c.id}">
-      <p class="card-claim">"${c.claim}"</p>
-      ${v.correction ? `<p class="card-correction">${v.correction}</p>` : ''}
+      <p class="card-claim">"${esc(c.claim)}"</p>
+      ${v.correction ? `<p class="card-correction">${esc(v.correction)}</p>` : ''}
       ${isExpanded ? `
-        <p class="card-detail">${v.explanation}</p>
+        <p class="card-detail">${esc(v.explanation)}</p>
         ${v.sources.length > 0 ? `
           <div class="card-sources">
-            ${v.sources.map(s => `<a href="${s.url}" target="_blank" rel="noopener" class="source-link">${s.title}</a>`).join('')}
+            ${v.sources.map(s => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener" class="source-link">${esc(s.title)}</a>`).join('')}
           </div>
         ` : ''}
       ` : ''}
@@ -94,8 +108,8 @@ function renderClaim(c: CheckedClaim): string {
 function renderAnswer(a: QuestionAnswer): string {
   return `
     <div class="card card-answer">
-      <p class="card-question">${a.question}</p>
-      <p class="card-detail">${a.answer}</p>
+      <p class="card-question">${esc(a.question)}</p>
+      <p class="card-detail">${esc(a.answer)}</p>
     </div>
   `;
 }
