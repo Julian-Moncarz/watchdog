@@ -30,7 +30,7 @@ export interface QuestionAnswer {
   question: string;
   answer: string;
   confidence: number;
-  sources: string[];
+  sources: Source[];
   caveats: string | null;
   timestamp: number;
 }

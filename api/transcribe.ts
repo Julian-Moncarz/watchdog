@@ -51,6 +51,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   if (!keyResp.ok) {
+    const errBody = await keyResp.text();
+    console.error('Deepgram key creation failed:', keyResp.status, errBody);
     return res.status(500).json({ error: 'Failed to create temporary Deepgram key' });
   }
 

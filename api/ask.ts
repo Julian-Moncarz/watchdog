@@ -6,9 +6,11 @@ Respond with ONLY JSON (no markdown, no code fences):
 {
   "answer": "Clear, concise answer to the question",
   "confidence": 0.0 to 1.0,
-  "sources": ["brief source descriptions"],
+  "sources": [{"title": "short descriptive title", "url": "https://..."}],
   "caveats": "Any important nuances or caveats, or null"
 }
+
+For sources: pick the 2-3 most authoritative and relevant sources from your search results. Prefer primary sources (NASA, WHO, Wikipedia, peer-reviewed) over blog posts.
 
 The question:`;
 

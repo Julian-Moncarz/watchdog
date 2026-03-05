@@ -181,8 +181,8 @@ input { font: inherit; border: none; background: none; color: inherit; outline: 
 }
 
 .card-answer {
-  background: var(--answer-bg);
-  border-left: 3px solid var(--text-dim);
+  background: var(--false-bg);
+  border-left: 3px solid var(--false);
   cursor: default;
 }
 

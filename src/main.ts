@@ -108,8 +108,14 @@ function renderClaim(c: CheckedClaim): string {
 function renderAnswer(a: QuestionAnswer): string {
   return `
     <div class="card card-answer">
-      <p class="card-question">${esc(a.question)}</p>
-      <p class="card-detail">${esc(a.answer)}</p>
+      <p class="card-claim">"${esc(a.question)}"</p>
+      <p class="card-correction">${esc(a.answer)}</p>
+      ${a.caveats ? `<p class="card-detail">${esc(a.caveats)}</p>` : ''}
+      ${a.sources && a.sources.length > 0 ? `
+        <div class="card-sources">
+          ${a.sources.map(s => `<a href="${safeUrl(s.url)}" target="_blank" rel="noopener" class="source-link">${esc(s.title)}</a>`).join('')}
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -168,6 +174,9 @@ async function startListening(): Promise<void> {
     // Get Deepgram connection info from our API
     const resp = await fetch('/api/transcribe', { method: 'POST' });
     const config = await resp.json();
+    if (!resp.ok || !config.params) {
+      throw new Error(config.error || 'Failed to get transcription config');
+    }
 
     // Get mic access
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
