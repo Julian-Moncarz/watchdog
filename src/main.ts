@@ -99,7 +99,7 @@ function showNotice(msg: string): void {
 }
 
 // --- Dog ---
-const DOG_FILES = ['/dog1.png', '/dog2.jpg', '/dog3.jpg'];
+const DOG_FILES = ['/dog1.png', '/dog2.png', '/dog3.png'];
 
 function getChosenDog(): string | null {
   return localStorage.getItem('watchdog-dog');
