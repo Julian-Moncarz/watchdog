@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const SYSTEM_PROMPT = `You are a fact-checker. Verify the claim using web search.
+const SYSTEM_PROMPT = `You are a fact-checker. Verify the claim using your knowledge. Only use web search if the claim involves recent events, current data, or something you are genuinely unsure about. Do NOT search for well-known facts you already know.
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
@@ -16,7 +16,7 @@ Rules:
 - MOSTLY_TRUE: approximately right, minor inaccuracies
 - MOSTLY_FALSE: kernel of truth but substantially wrong
 - UNVERIFIABLE: genuinely cannot determine after searching
-- For sources: 2-3 most authoritative URLs`;
+- For sources: include 1-2 authoritative URLs if you searched, otherwise empty array`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -59,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           {
             type: 'web_search_20250305',
             name: 'web_search',
-            max_uses: 3,
+            max_uses: 2,
           },
         ],
         messages: [

@@ -292,7 +292,7 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.75rem;
 }
 
 .dog-option {
@@ -309,13 +309,13 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
 }
 
 .dog-option img {
-  max-width: 140px;
-  max-height: 140px;
+  width: 140px;
+  height: 140px;
   object-fit: contain;
 }
 
-.dog-option-1 img { max-width: 140px; max-height: 140px; }
-.dog-option-2 img { max-width: 160px; max-height: 160px; }
+.dog-option-1 img { width: 140px; height: 140px; }
+.dog-option-2 img { width: 140px; height: 140px; }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .dog-option img {
