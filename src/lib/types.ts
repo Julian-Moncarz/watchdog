@@ -27,9 +27,3 @@ export interface QuestionAnswer {
   sources: string[];
   timestamp: number;
 }
-
-export interface TranscriptChunk {
-  speaker: string;
-  text: string;
-  timestamp: number;
-}

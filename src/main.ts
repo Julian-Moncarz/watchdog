@@ -98,6 +98,13 @@ function showNotice(msg: string): void {
   }, 1800);
 }
 
+// --- Dog ---
+const DOG_FILES = ['/dog1.png', '/dog2.jpg', '/dog3.jpg'];
+
+function getChosenDog(): string | null {
+  return localStorage.getItem('watchdog-dog');
+}
+
 // --- Render ---
 function render(): void {
   const app = document.getElementById('app')!;
@@ -119,7 +126,7 @@ function renderInner(app: HTMLElement, flaggedClaims: CheckedClaim[]): void {
   app.innerHTML = `
     <main class="main">
       ${!hasResults()
-        ? `<div class="empty-state"><p class="empty-text" id="rotating-hint"><em>Watchdog,<br>${esc(hints[hintIndex])}</em></p></div>`
+        ? `<div class="empty-state"></div>`
         : `<div class="feed">${answers.map(a => renderAnswer(a)).join('')}${flaggedClaims.map(c => renderClaim(c)).join('')}</div>`
       }
     </main>
@@ -157,6 +164,29 @@ function renderAnswer(a: QuestionAnswer): string {
       ${renderSources(a.sources || [], expandedClaimId === a.id)}
     </div>
   `;
+}
+
+// --- Dog icon (persistent) ---
+function mountDog(): void {
+  const dog = getChosenDog();
+  if (!dog) return;
+  if (document.getElementById('dog-icon')) return;
+
+  const img = document.createElement('img');
+  img.id = 'dog-icon';
+  img.className = 'watchdog-icon';
+  img.src = dog;
+  img.alt = '';
+  img.dataset.dog = String(DOG_FILES.indexOf(dog) + 1);
+  document.body.appendChild(img);
+
+  img.addEventListener('click', () => {
+    const current = getChosenDog();
+    const next = DOG_FILES[(DOG_FILES.indexOf(current!) + 1) % DOG_FILES.length];
+    localStorage.setItem('watchdog-dog', next);
+    img.src = next;
+    img.dataset.dog = String(DOG_FILES.indexOf(next) + 1);
+  });
 }
 
 // --- Events ---
@@ -400,27 +430,54 @@ function showOnboarding(): void {
   overlay.className = 'onboarding';
   overlay.innerHTML = `
     <div class="onboarding-inner">
-      <button class="onboarding-close" aria-label="Close">&times;</button>
-      <p class="onboarding-title">Watchdog</p>
-      <div class="onboarding-body">
-        <p>Have more truthful, fact-driven conversations. Watchdog listens through your microphone, extracts factual claims, and verifies them with web search in real time. When someone says something false, it plays a chime and shows the correction.</p>
-        <p>You can also ask questions. Say "Watchdog" followed by:</p>
-        <ul class="onboarding-examples">
-          <li>A factual question, answered via web search</li>
-          <li>A question about the conversation, answered from the transcript</li>
-          <li>"Copy transcript," which copies the full transcript to your clipboard</li>
-          <li>"Dark mode" or "light mode" to switch the theme</li>
-        </ul>
+      <div class="onboarding-step" data-step="1">
+        <p class="onboarding-title">Watchdog</p>
+        <div class="onboarding-body">
+          <p>Have more truthful, fact-driven conversations. Watchdog listens through your microphone, extracts factual claims, and verifies them with web search in real time. When someone says something false, it plays a chime and shows the correction.</p>
+          <p>You can also ask questions. Say "Watchdog" followed by:</p>
+          <ul class="onboarding-examples">
+            <li>&bull; A factual question, answered via web search</li>
+            <li>&bull; A question about the conversation, answered from the transcript</li>
+            <li>&bull; "Copy transcript" to copy to clipboard</li>
+            <li>&bull; "Dark mode" or "light mode" to switch theme</li>
+          </ul>
+        </div>
+        <button class="onboarding-next" aria-label="Next">&rarr;</button>
+      </div>
+      <div class="onboarding-step hidden" data-step="2">
+        <p class="onboarding-title">Choose your watchdog</p>
+        <div class="dog-picker">
+          ${DOG_FILES.map((src, i) => `<button class="dog-option dog-option-${i + 1}" data-dog="${src}"><img src="${src}" alt="Dog ${i + 1}" /></button>`).join('')}
+        </div>
       </div>
     </div>
   `;
 
   document.body.appendChild(overlay);
 
-  overlay.addEventListener('click', () => {
-    localStorage.setItem('watchdog-onboarded', '1');
-    overlay.classList.add('dismissing');
-    overlay.addEventListener('animationend', () => overlay.remove());
+  const step1 = overlay.querySelector('[data-step="1"]')!;
+  const step2 = overlay.querySelector('[data-step="2"]')!;
+  const nextBtn = overlay.querySelector('.onboarding-next')!;
+
+  // Step 1: next button advances to step 2
+  nextBtn.addEventListener('click', () => {
+    step1.classList.add('hidden');
+    step2.classList.remove('hidden');
+  });
+
+  // Step 2: pick a dog → auto dismiss
+  overlay.querySelectorAll('.dog-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dog = (btn as HTMLElement).dataset.dog!;
+      localStorage.setItem('watchdog-dog', dog);
+      localStorage.setItem('watchdog-onboarded', '1');
+      overlay.classList.add('dismissing');
+      overlay.addEventListener('animationend', () => {
+        overlay.remove();
+        mountDog();
+        render();
+      });
+    });
   });
 }
 
@@ -429,39 +486,8 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
-const hints = [
-  'who founded Anthropic?',
-  'how many parameters is GPT-4?',
-  'when did AlphaGo beat Lee Sedol?',
-  'summarize our points so far.',
-  'when was the transformer paper?',
-  'copy transcript to clipboard.',
-  'what was my main argument?',
-  'how much did OpenAI raise?',
-  'switch to dark mode.',
-];
-let hintIndex = 0;
-let hintInterval: ReturnType<typeof setInterval> | null = null;
-
-function startHintRotation(): void {
-  const el = document.getElementById('rotating-hint');
-  if (!el) return;
-  el.innerHTML = `<em>Watchdog,<br>${esc(hints[0])}</em>`;
-
-  hintInterval = setInterval(() => {
-    const el = document.getElementById('rotating-hint');
-    if (!el) { clearInterval(hintInterval!); return; }
-    el.classList.add('fading-text');
-    setTimeout(() => {
-      hintIndex = (hintIndex + 1) % hints.length;
-      el.innerHTML = `<em>Watchdog,<br>${esc(hints[hintIndex])}</em>`;
-      el.classList.remove('fading-text');
-    }, 300);
-  }, 6000);
-}
-
 applyStoredTheme();
 showOnboarding();
+mountDog();
 render();
-startHintRotation();
 startListening();
