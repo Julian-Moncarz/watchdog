@@ -1,6 +1,6 @@
 import './style.css';
 import type { CheckedClaim, VerificationResult, QuestionAnswer } from './lib/types.ts';
-import { playChime, initAudio } from './lib/sound.ts';
+import { playChime } from './lib/sound.ts';
 
 // --- State ---
 let claims: CheckedClaim[] = [];
@@ -57,6 +57,22 @@ function getCorrectionsText(): string {
   return flagged.map(c => `Claim: "${c.claim}" → ${c.verification.verdict}: ${c.verification.response}`).join('\n');
 }
 
+// --- Theme ---
+function toggleTheme(): void {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : current === 'light' ? 'dark'
+    : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('watchdog-theme', next);
+  showNotice(`Switched to ${next} mode.`);
+}
+
+function applyStoredTheme(): void {
+  const stored = localStorage.getItem('watchdog-theme');
+  if (stored) document.documentElement.setAttribute('data-theme', stored);
+}
+
 // --- Clipboard ---
 function copyTranscript(): void {
   const text = transcriptBuffer.join('\n');
@@ -72,16 +88,14 @@ function copyTranscript(): void {
 }
 
 function showNotice(msg: string): void {
-  const placeholderId = `n${Date.now()}`;
-  answers = [{
-    id: placeholderId,
-    question: 'copy transcript',
-    answer: msg,
-    confidence: 1,
-    sources: [],
-    timestamp: Date.now(),
-  }, ...answers];
-  render();
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('dismissing');
+    toast.addEventListener('animationend', () => toast.remove());
+  }, 1800);
 }
 
 // --- Render ---
@@ -177,6 +191,8 @@ async function handleCommand(question: string, speaker: string): Promise<void> {
 
     if (intent === 'clipboard') {
       copyTranscript();
+    } else if (intent === 'theme') {
+      toggleTheme();
     } else {
       submitQuestion(question, speaker, intent === 'transcript');
     }
@@ -321,8 +337,8 @@ async function processNewTranscript(): Promise<void> {
       claims = [c, ...claims];
       const v = c.verification.verdict;
       if (v === 'FALSE' || v === 'MOSTLY_FALSE') {
-        playChime('false');
-        navigator.vibrate?.(10);
+        playChime();
+        navigator.vibrate?.([15, 50, 15]);
       }
     }
     render();
@@ -393,6 +409,7 @@ function showOnboarding(): void {
           <li>A factual question, answered via web search</li>
           <li>A question about the conversation, answered from the transcript</li>
           <li>"Copy transcript," which copies the full transcript to your clipboard</li>
+          <li>"Dark mode" or "light mode" to switch the theme</li>
         </ul>
       </div>
     </div>
@@ -421,6 +438,7 @@ const hints = [
   'copy transcript to clipboard.',
   'what was my main argument?',
   'how much did OpenAI raise?',
+  'switch to dark mode.',
 ];
 let hintIndex = 0;
 let hintInterval: ReturnType<typeof setInterval> | null = null;
@@ -442,8 +460,8 @@ function startHintRotation(): void {
   }, 6000);
 }
 
+applyStoredTheme();
 showOnboarding();
 render();
 startHintRotation();
-initAudio();
 startListening();

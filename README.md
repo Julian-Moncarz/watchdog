@@ -6,6 +6,7 @@ You can also ask questions. Say "Watchdog" followed by:
 - A factual question, answered via web search ("Who founded Anthropic?")
 - A question about the conversation, answered from the transcript ("Summarize our points so far.")
 - "Copy transcript," which copies the full transcript to your clipboard.
+- "Dark mode" or "light mode" to switch the theme.
 
 ### Stack
 

@@ -6,6 +6,7 @@ Categories:
 - "question" — a factual question that can be answered with a web search (e.g. "how tall is Everest", "who founded Anthropic")
 - "transcript" — a request about the ongoing conversation that requires the transcript (e.g. "summarize our points", "what was my argument", "what did they say about X")
 - "clipboard" — a request to copy, export, or save the transcript (e.g. "copy the transcript", "save to clipboard", "export")
+- "theme" — a request to switch, toggle, or change the color theme or dark/light mode (e.g. "dark mode", "switch to light mode", "toggle theme")
 
 Command:`;
 
@@ -42,10 +43,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const data = await response.json();
   const text = (data.content?.[0]?.text ?? 'question').trim().toLowerCase();
 
-  // Normalize to one of the three categories
   let intent = 'question';
   if (text.includes('transcript')) intent = 'transcript';
   else if (text.includes('clipboard')) intent = 'clipboard';
+  else if (text.includes('theme')) intent = 'theme';
 
   return res.status(200).json({ intent });
 }

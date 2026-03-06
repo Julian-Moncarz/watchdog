@@ -8,6 +8,30 @@
   --font: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111111;
+    --text: #e5e5e5;
+    --text-dim: #777777;
+    --border: #222222;
+  }
+
+  :root:not([data-theme="light"]) ::selection {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #111111;
+  --text: #e5e5e5;
+  --text-dim: #777777;
+  --border: #222222;
+}
+
+:root[data-theme="dark"] ::selection {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
@@ -225,4 +249,23 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
 
 .onboarding-examples li {
   padding: 0.2rem 0;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  background: var(--border);
+  animation: fade-in 0.2s ease both;
+  z-index: 50;
+}
+
+.toast.dismissing {
+  animation: fade-out 0.3s ease both;
 }
