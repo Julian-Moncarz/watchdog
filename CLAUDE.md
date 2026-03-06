@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is Watchdog
 
-A PWA that listens to real-time conversations, extracts factual claims, and fact-checks them using Claude Haiku 4.5 with web search. When someone says something false, it plays an audio chime and shows the correction. Users can also type factual questions directly.
+A voice-activated fact-checker PWA. Listens to conversations via microphone, extracts factual claims, and verifies them using Claude Haiku 4.5 with web search. False claims trigger a chime and show a correction card. Users activate voice commands by saying "Watchdog" — ask factual questions (web search), ask about the conversation (transcript-aware), or copy the transcript to clipboard.
 
 ## Commands
 
@@ -23,7 +23,8 @@ A PWA that listens to real-time conversations, extracts factual claims, and fact
 - `api/transcribe.ts` — returns a temporary Deepgram API key + WebSocket config for client-side streaming
 - `api/extract.ts` — sends transcript to Claude Haiku for claim extraction (no web search)
 - `api/verify.ts` — sends a single claim to Claude Haiku with `web_search_20250305` tool for verification
-- `api/ask.ts` — answers a typed question using Claude Haiku with web search
+- `api/classify.ts` — classifies a voice command as `question`, `transcript`, or `clipboard` (no web search)
+- `api/ask.ts` — answers a question using Claude Haiku; uses web search for factual questions, transcript context for conversation questions
 
 ### Real-time pipeline
 
@@ -32,6 +33,12 @@ A PWA that listens to real-time conversations, extracts factual claims, and fact
 3. Every 10 seconds, accumulated new transcript text is sent to `/api/extract`
 4. Extracted claims are verified in parallel via `/api/verify`
 5. FALSE/MOSTLY_FALSE claims trigger an audio chime (Web Audio API, `src/lib/sound.ts`)
+
+### Voice command routing
+
+1. User says "Watchdog" followed by a command (detected via regex trigger in transcript)
+2. Command sent to `/api/classify` → returns intent: `question`, `transcript`, or `clipboard`
+3. `question` → `/api/ask` with web search; `transcript` → `/api/ask` with transcript context + corrections; `clipboard` → copies transcript to clipboard locally
 
 ### Key files
 
