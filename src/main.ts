@@ -14,9 +14,10 @@ let claimIdCounter = 0;
 let triggerPending = false;
 let triggerSpeaker = '';
 let extractIntervalId: ReturnType<typeof setInterval> | null = null;
+const previousChunks: string[] = [];
 const verifyCache = new Map<string, VerificationResult>();
 
-const TRIGGER = /\bwatchdog\b[,.:!?]?\s*/i;
+const TRIGGER = /\bwatch\s*dog\b[,.:!?]?\s*/i;
 
 // --- Utilities ---
 function esc(s: string): string {
@@ -268,6 +269,7 @@ function cleanup(): void {
     mediaRecorder.stop();
   }
   mediaRecorder = null;
+  previousChunks.length = 0;
 }
 
 async function startListening(): Promise<void> {
@@ -365,11 +367,14 @@ async function processNewTranscript(): Promise<void> {
   processedText = fullText;
   console.log('[extract input]', newText);
 
+  const priorContext = previousChunks.slice(-2).join('\n');
+  previousChunks.push(newText);
+
   try {
     const extractResp = await fetch('/api/extract', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript: newText }),
+      body: JSON.stringify({ transcript: newText, prior_context: priorContext || undefined }),
     });
     const extractData = await extractResp.json();
     console.log('[extract response]', extractData);
