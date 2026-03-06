@@ -1,6 +1,6 @@
 # Watchdog
 
-A voice-activated fact-checker. Watchdog listens to conversations through your microphone, extracts factual claims, and verifies them with web search. When someone says something false, it plays a chime and shows the correction.
+Have more truthful, fact-driven conversations. Watchdog listens through your microphone, extracts factual claims, and verifies them with web search in real time. When someone says something false, it plays a chime and shows the correction.
 
 Say "Watchdog" followed by:
 - A factual question, answered via web search ("Who founded Anthropic?")
