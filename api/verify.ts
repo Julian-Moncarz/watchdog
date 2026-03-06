@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { extractJsonFromContentBlocks } from '../src/lib/parse.ts';
 
 const SYSTEM_PROMPT = `You are a fact-checker. Verify the claim using your knowledge. Only use web search if the claim involves recent events, current data, or something you are genuinely unsure about. Do NOT search for well-known facts you already know.
 
@@ -79,22 +80,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ verdict: 'UNVERIFIABLE', confidence: 0, response: 'Unable to verify right now.', sources: [] });
   }
 
-  const textBlocks = (data.content ?? []).filter((b: any) => b.type === 'text');
-  for (const block of textBlocks) {
-    let text = block.text;
-    // Strip markdown fences if present
-    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenceMatch) text = fenceMatch[1].trim();
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return res.status(200).json(JSON.parse(jsonMatch[0]));
-      } catch {
-        // try next block
-      }
-    }
-  }
+  const parsed = extractJsonFromContentBlocks(data.content ?? []);
+  if (parsed) return res.status(200).json(parsed);
 
   return res.status(200).json({ verdict: 'UNVERIFIABLE', confidence: 0, response: 'Unable to verify.', sources: [] });
 }

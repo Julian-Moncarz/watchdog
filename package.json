@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "eval": "node tests/eval.mjs",
     "qa": "node tests/qa.mjs"
   },
@@ -15,6 +17,7 @@
   },
   "devDependencies": {
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }

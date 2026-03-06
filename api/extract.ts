@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { stripMarkdownFences, extractJsonArray } from '../src/lib/parse.ts';
 
 const EXTRACTION_PROMPT = `You are a factual claim extractor. You will receive a NEW transcript chunk to extract claims from. You may also receive PRIOR CONTEXT (previous transcript chunks) to help you understand references and avoid duplicates.
 
@@ -62,16 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   const data = await response.json();
-  let text = data.content?.[0]?.text ?? '[]';
-
-  // Strip markdown fences if present
-  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenceMatch) text = fenceMatch[1].trim();
-
-  try {
-    const claims = JSON.parse(text);
+  const text = data.content?.[0]?.text ?? '[]';
+  const claims = extractJsonArray(text);
+  if (claims) {
     return res.status(200).json({ claims });
-  } catch {
-    return res.status(200).json({ claims: [], raw: text });
   }
+  return res.status(200).json({ claims: [], raw: stripMarkdownFences(text) });
 }

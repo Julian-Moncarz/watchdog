@@ -1,6 +1,11 @@
 import './style.css';
 import type { CheckedClaim, VerificationResult, QuestionAnswer } from './lib/types.ts';
 import { playChime, playAnswerChime } from './lib/sound.ts';
+import {
+  getCacheKey, shouldTriggerChime, isFlagged,
+  calculateTranscriptDelta, buildPriorContext, matchTrigger,
+  esc, stripCitations, safeUrl, domain,
+} from './lib/pipeline.ts';
 
 // --- State ---
 let claims: CheckedClaim[] = [];
@@ -17,45 +22,13 @@ let extractIntervalId: ReturnType<typeof setInterval> | null = null;
 const previousChunks: string[] = [];
 const verifyCache = new Map<string, VerificationResult>();
 
-const TRIGGER = /\bwatch\s*dog\b[,.:!?]?\s*/i;
-
-// --- Utilities ---
-function esc(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function stripCitations(s: string): string {
-  return s.replace(/<\/?cite[^>]*>/g, '');
-}
-
-function safeUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : '#';
-  } catch {
-    return '#';
-  }
-}
-
-function domain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
-}
-
 function hasResults(): boolean {
-  const flagged = claims.filter(c =>
-    c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
-  );
+  const flagged = claims.filter(c => isFlagged(c.verification.verdict));
   return flagged.length > 0 || answers.length > 0;
 }
 
 function getCorrectionsText(): string {
-  const flagged = claims.filter(c =>
-    c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
-  );
+  const flagged = claims.filter(c => isFlagged(c.verification.verdict));
   if (flagged.length === 0) return '';
   return flagged.map(c => `Claim: "${c.claim}" → ${c.verification.verdict}: ${c.verification.response}`).join('\n');
 }
@@ -120,9 +93,7 @@ function getChosenDog(): string | null {
 // --- Render ---
 function render(): void {
   const app = document.getElementById('app')!;
-  const flaggedClaims = claims.filter(c =>
-    c.verification.verdict === 'FALSE' || c.verification.verdict === 'MOSTLY_FALSE'
-  );
+  const flaggedClaims = claims.filter(c => isFlagged(c.verification.verdict));
 
   const emptyState = app.querySelector('.empty-state');
   if (emptyState && hasResults()) {
@@ -316,11 +287,11 @@ async function startListening(): Promise<void> {
             : 'Speaker';
           console.log('[transcript]', `${speaker}: ${transcript}`);
 
-          if (TRIGGER.test(transcript)) {
-            const after = transcript.replace(TRIGGER, '').replace(/^[.,!?\s]+/, '').trim();
-            if (after.length > 3) {
-              console.log('[watchdog command]', after, `(${speaker})`);
-              handleCommand(after, speaker);
+          const trigger = matchTrigger(transcript);
+          if (trigger.matched) {
+            if (trigger.command.length > 3) {
+              console.log('[watchdog command]', trigger.command, `(${speaker})`);
+              handleCommand(trigger.command, speaker);
               triggerPending = false;
             } else {
               triggerPending = true;
@@ -361,13 +332,13 @@ async function startListening(): Promise<void> {
 // --- Claim pipeline ---
 async function processNewTranscript(): Promise<void> {
   const fullText = transcriptBuffer.join('\n');
-  const newText = fullText.slice(processedText.length).trim();
+  const newText = calculateTranscriptDelta(fullText, processedText);
   if (!newText) return;
 
   processedText = fullText;
   console.log('[extract input]', newText);
 
-  const priorContext = previousChunks.slice(-2).join('\n');
+  const priorContext = buildPriorContext(previousChunks);
   previousChunks.push(newText);
 
   try {
@@ -382,7 +353,7 @@ async function processNewTranscript(): Promise<void> {
     if (!extracted || extracted.length === 0) return;
 
     const verifyPromises = extracted.map(async (ec: { claim: string; speaker: string; context: string }) => {
-      const cacheKey = ec.claim.toLowerCase().trim();
+      const cacheKey = getCacheKey(ec.claim);
       let verification: VerificationResult;
 
       if (verifyCache.has(cacheKey)) {
@@ -416,8 +387,7 @@ async function processNewTranscript(): Promise<void> {
 
     for (const c of verified) {
       claims = [c, ...claims];
-      const v = c.verification.verdict;
-      if (v === 'FALSE' || v === 'MOSTLY_FALSE') {
+      if (shouldTriggerChime(c.verification.verdict)) {
         playChime();
         navigator.vibrate?.([15, 50, 15]);
       }

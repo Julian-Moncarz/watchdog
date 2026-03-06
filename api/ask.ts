@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { extractJsonFromContentBlocks } from '../src/lib/parse.ts';
 
 const SEARCH_PROMPT = `You are Watchdog. Answer the user's question using web search. You answer ANY question — factual, subjective, or opinion-based. For subjective questions, present the prevailing perspectives and evidence. Never refuse to answer.
 
@@ -104,26 +105,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // Try to extract JSON from text blocks
-  const textBlocks = (data.content ?? []).filter((b: any) => b.type === 'text');
-  for (const block of textBlocks) {
-    let text = block.text;
-    // Strip markdown fences if present
-    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenceMatch) text = fenceMatch[1].trim();
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.answer) return res.status(200).json(parsed);
-      } catch {
-        // try next block
-      }
-    }
-  }
+  const parsed = extractJsonFromContentBlocks(data.content ?? []) as { answer?: string } | null;
+  if (parsed?.answer) return res.status(200).json(parsed);
 
   // Fallback: use raw text as the answer (model refused JSON or gave plain text)
+  const textBlocks = (data.content ?? []).filter((b: any) => b.type === 'text');
   const fallbackText = textBlocks.map((b: any) => b.text).join(' ').trim();
   if (fallbackText) {
     // Strip citation tags from fallback text
