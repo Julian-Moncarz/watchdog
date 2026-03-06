@@ -63,18 +63,6 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
   background: linear-gradient(transparent, var(--bg));
 }
 
-/* Recording indicator */
-.rec-dot {
-  position: fixed;
-  top: calc(1rem + env(safe-area-inset-top, 0px));
-  left: 1rem;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #c33;
-  z-index: 20;
-}
-
 /* Empty state */
 .empty-state {
   display: flex;
@@ -140,7 +128,6 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
   font-size: 0.8125rem;
   line-height: 1.45;
   color: var(--text-dim);
-  font-style: italic;
   margin-bottom: 0.25rem;
 }
 
