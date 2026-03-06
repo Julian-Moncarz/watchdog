@@ -107,7 +107,7 @@ function renderInner(app: HTMLElement, flaggedClaims: CheckedClaim[]): void {
     ${isRecording ? '<div class="rec-dot"></div>' : ''}
     <main class="main">
       ${!hasResults()
-        ? `<div class="empty-state"><p class="empty-text" id="rotating-hint"></p></div>`
+        ? `<div class="empty-state"><p class="empty-text" id="rotating-hint"><em>Watchdog,<br>${esc(hints[hintIndex])}</em></p></div>`
         : `<div class="feed">${answers.map(a => renderAnswer(a)).join('')}${flaggedClaims.map(c => renderClaim(c)).join('')}</div>`
       }
     </main>
