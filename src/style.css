@@ -202,14 +202,12 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
 
 .onboarding-title {
   font-size: 1.125rem;
-  font-weight: 600;
   margin-bottom: 1.25rem;
 }
 
 .onboarding-body {
   font-size: 0.875rem;
   line-height: 1.7;
-  color: var(--text-dim);
 }
 
 .onboarding-body p + p {
@@ -224,9 +222,4 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
 
 .onboarding-examples li {
   padding: 0.2rem 0;
-  color: var(--text);
-}
-
-.onboarding-examples li::before {
-  content: '';
 }
