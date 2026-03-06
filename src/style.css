@@ -198,6 +198,22 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
 
 .onboarding-inner {
   max-width: 400px;
+  position: relative;
+}
+
+.onboarding-close {
+  position: absolute;
+  top: -2rem;
+  right: -1rem;
+  font-size: 1.25rem;
+  color: var(--text-dim);
+  padding: 0.5rem;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.onboarding-close:hover {
+  color: var(--text);
 }
 
 .onboarding-title {
