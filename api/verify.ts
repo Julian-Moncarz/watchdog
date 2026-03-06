@@ -7,7 +7,7 @@ Respond with ONLY JSON (no markdown, no code fences):
   "verdict": "TRUE" | "FALSE" | "MOSTLY_TRUE" | "MOSTLY_FALSE" | "UNVERIFIABLE",
   "confidence": 0.0 to 1.0,
   "response": "One concise sentence: what's actually true. If wrong, state the correction directly. If you're confident, just state the fact. If uncertain, briefly note why (e.g. 'evidence is mixed', 'sources disagree', 'hard to verify').",
-  "sources": [{"title": "short descriptive title", "url": "https://..."}]
+  "sources": ["https://..."]
 }
 
 Rules:
@@ -16,7 +16,7 @@ Rules:
 - MOSTLY_TRUE: approximately right, minor inaccuracies
 - MOSTLY_FALSE: kernel of truth but substantially wrong
 - UNVERIFIABLE: genuinely cannot determine after searching
-- For sources: 2-3 most authoritative (prefer primary sources over blogs)
+- For sources: 2-3 most authoritative URLs
 
 The claim:`;
 

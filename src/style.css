@@ -178,3 +178,55 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
 }
 
 .source-link:hover { color: var(--text); }
+
+/* Onboarding overlay */
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: fade-in 0.3s ease both;
+}
+
+.onboarding.dismissing {
+  animation: fade-out 0.3s ease both;
+}
+
+.onboarding-inner {
+  max-width: 400px;
+}
+
+.onboarding-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+}
+
+.onboarding-body {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+
+.onboarding-body p + p {
+  margin-top: 1rem;
+}
+
+.onboarding-examples {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.onboarding-examples li {
+  padding: 0.2rem 0;
+  color: var(--text);
+}
+
+.onboarding-examples li::before {
+  content: '';
+}

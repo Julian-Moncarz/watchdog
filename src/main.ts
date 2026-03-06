@@ -380,6 +380,36 @@ async function submitQuestion(question: string, speaker: string, withTranscript:
   }
 }
 
+// --- Onboarding ---
+function showOnboarding(): void {
+  if (localStorage.getItem('watchdog-onboarded')) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'onboarding';
+  overlay.innerHTML = `
+    <div class="onboarding-inner">
+      <p class="onboarding-title">Watchdog</p>
+      <div class="onboarding-body">
+        <p>Have more truthful, fact-driven conversations. Watchdog listens through your microphone, extracts factual claims, and verifies them with web search in real time. When someone says something false, it plays a chime and shows the correction.</p>
+        <p>You can also ask questions. Say "Watchdog" followed by:</p>
+        <ul class="onboarding-examples">
+          <li>A factual question, answered via web search</li>
+          <li>A question about the conversation, answered from the transcript</li>
+          <li>"Copy transcript," which copies the full transcript to your clipboard</li>
+        </ul>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', () => {
+    localStorage.setItem('watchdog-onboarded', '1');
+    overlay.classList.add('dismissing');
+    overlay.addEventListener('animationend', () => overlay.remove());
+  });
+}
+
 // --- Init ---
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -415,6 +445,7 @@ function startHintRotation(): void {
   }, 6000);
 }
 
+showOnboarding();
 render();
 startHintRotation();
 initAudio();
