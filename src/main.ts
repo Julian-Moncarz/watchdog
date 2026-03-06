@@ -528,6 +528,7 @@ function showOnboarding(): void {
         overlay.remove();
         mountDog();
         render();
+        startListening();
       });
     });
   });
@@ -542,4 +543,6 @@ applyStoredTheme();
 showOnboarding();
 mountDog();
 render();
-startListening();
+if (localStorage.getItem('watchdog-onboarded')) {
+  startListening();
+}
