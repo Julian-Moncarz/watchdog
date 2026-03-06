@@ -42,8 +42,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
+      system: EXTRACTION_PROMPT,
       messages: [
-        { role: 'user', content: `${EXTRACTION_PROMPT}\n\nTranscript:\n${transcript}` },
+        { role: 'user', content: `Transcript:\n${transcript}` },
       ],
     }),
   });

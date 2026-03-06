@@ -1,14 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const PROMPT = `Classify this voice command into exactly one category. Respond with ONLY one word — no punctuation, no explanation.
+const SYSTEM_PROMPT = `Classify this voice command into exactly one category. Respond with ONLY one word — no punctuation, no explanation.
 
 Categories:
-- "question" — a factual question that can be answered with a web search (e.g. "how tall is Everest", "who founded Anthropic")
+- "question" — any question or request for information (factual, subjective, or opinion-based) (e.g. "how tall is Everest", "who founded Anthropic", "is X good", "what do people think about Y")
 - "transcript" — a request about the ongoing conversation that requires the transcript (e.g. "summarize our points", "what was my argument", "what did they say about X")
 - "clipboard" — a request to copy, export, or save the transcript (e.g. "copy the transcript", "save to clipboard", "export")
-- "theme" — a request to switch, toggle, or change the color theme or dark/light mode (e.g. "dark mode", "switch to light mode", "toggle theme")
-
-Command:`;
+- "theme" — a request to switch, toggle, or change the color theme or dark/light mode (e.g. "dark mode", "switch to light mode", "toggle theme")`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -34,8 +32,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 4,
+      system: SYSTEM_PROMPT,
       messages: [
-        { role: 'user', content: `${PROMPT}\n\n${command}` },
+        { role: 'user', content: command },
       ],
     }),
   });

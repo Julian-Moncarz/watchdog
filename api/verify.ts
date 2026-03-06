@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const VERIFICATION_PROMPT = `You are a fact-checker. Verify the claim using web search.
+const SYSTEM_PROMPT = `You are a fact-checker. Verify the claim using web search.
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
@@ -16,9 +16,7 @@ Rules:
 - MOSTLY_TRUE: approximately right, minor inaccuracies
 - MOSTLY_FALSE: kernel of truth but substantially wrong
 - UNVERIFIABLE: genuinely cannot determine after searching
-- For sources: 2-3 most authoritative URLs
-
-The claim:`;
+- For sources: 2-3 most authoritative URLs`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -41,36 +39,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const userMessage = context
-    ? `${VERIFICATION_PROMPT}\n\n"${claim}"\n\nContext: ${context}`
-    : `${VERIFICATION_PROMPT}\n\n"${claim}"`;
+    ? `Claim: "${claim}"\n\nContext: ${context}`
+    : `Claim: "${claim}"`;
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 3,
-        },
-      ],
-      messages: [
-        { role: 'user', content: userMessage },
-      ],
-    }),
-  });
+  let data: any;
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        tools: [
+          {
+            type: 'web_search_20250305',
+            name: 'web_search',
+            max_uses: 3,
+          },
+        ],
+        messages: [
+          { role: 'user', content: userMessage },
+        ],
+      }),
+    });
 
-  const data = await response.json();
+    if (!response.ok) {
+      console.error('Anthropic API error:', response.status);
+      return res.status(200).json({ verdict: 'UNVERIFIABLE', confidence: 0, response: 'Unable to verify right now.', sources: [] });
+    }
+
+    data = await response.json();
+  } catch (err) {
+    console.error('Anthropic fetch failed:', err);
+    return res.status(200).json({ verdict: 'UNVERIFIABLE', confidence: 0, response: 'Unable to verify right now.', sources: [] });
+  }
+
   const textBlocks = (data.content ?? []).filter((b: any) => b.type === 'text');
   for (const block of textBlocks) {
-    const jsonMatch = block.text.match(/\{[\s\S]*\}/);
+    let text = block.text;
+    // Strip markdown fences if present
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) text = fenceMatch[1].trim();
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         return res.status(200).json(JSON.parse(jsonMatch[0]));

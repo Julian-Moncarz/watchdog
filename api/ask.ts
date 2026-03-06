@@ -1,15 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const SEARCH_PROMPT = `You are Watchdog. Answer the factual question using web search.
+const SEARCH_PROMPT = `You are Watchdog. Answer the user's question using web search. You answer ANY question — factual, subjective, or opinion-based. For subjective questions, present the prevailing perspectives and evidence. Never refuse to answer.
 
 Respond with ONLY JSON (no markdown, no code fences):
 {
-  "answer": "Clear, concise answer in 1-3 sentences. If you're confident, just state the answer. If uncertain, briefly note why (e.g. 'reports vary', 'not yet confirmed').",
+  "answer": "Clear, concise answer in 1-3 sentences. If you're confident, just state the answer. If uncertain, briefly note why (e.g. 'reports vary', 'not yet confirmed'). For opinion questions, summarize the main viewpoints.",
   "confidence": 0.0 to 1.0,
   "sources": ["https://..."]
 }
 
-For sources: 2-3 most authoritative URLs.`;
+For sources: 2-3 most relevant URLs.`;
 
 const TRANSCRIPT_PROMPT = `You are Watchdog, an AI assistant embedded in a live conversation. The user has asked a question about the conversation.
 
@@ -40,9 +40,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const hasTranscript = transcript && typeof transcript === 'string';
-  const prompt = hasTranscript ? TRANSCRIPT_PROMPT : SEARCH_PROMPT;
+  const systemPrompt = hasTranscript ? TRANSCRIPT_PROMPT : SEARCH_PROMPT;
 
-  let userContent = `${prompt}\n\n`;
+  let userContent = '';
   if (hasTranscript) {
     userContent += `Conversation transcript:\n${transcript.slice(-10000)}\n\n`;
     if (corrections && typeof corrections === 'string') {
@@ -57,6 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body: Record<string, unknown> = {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1024,
+    system: systemPrompt,
     messages: [
       { role: 'user', content: userContent },
     ],
@@ -73,29 +74,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ];
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-  });
+  let data: any;
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+    data = await response.json();
 
-  const data = await response.json();
+    if (!response.ok) {
+      console.error('Anthropic API error:', data);
+      return res.status(200).json({
+        answer: `I couldn't answer that question right now.`,
+        confidence: 0,
+        sources: [],
+      });
+    }
+  } catch (err) {
+    console.error('Anthropic fetch failed:', err);
+    return res.status(200).json({
+      answer: `I couldn't reach the search service. Try again.`,
+      confidence: 0,
+      sources: [],
+    });
+  }
 
+  // Try to extract JSON from text blocks
   const textBlocks = (data.content ?? []).filter((b: any) => b.type === 'text');
   for (const block of textBlocks) {
-    const jsonMatch = block.text.match(/\{[\s\S]*\}/);
+    let text = block.text;
+    // Strip markdown fences if present
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) text = fenceMatch[1].trim();
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
-        return res.status(200).json(JSON.parse(jsonMatch[0]));
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.answer) return res.status(200).json(parsed);
       } catch {
         // try next block
       }
     }
   }
 
-  return res.status(200).json({ answer: 'Unable to process response', confidence: 0, sources: [] });
+  // Fallback: use raw text as the answer (model refused JSON or gave plain text)
+  const fallbackText = textBlocks.map((b: any) => b.text).join(' ').trim();
+  if (fallbackText) {
+    // Strip citation tags from fallback text
+    const cleaned = fallbackText.replace(/<\/?cite[^>]*>/g, '');
+    return res.status(200).json({ answer: cleaned, confidence: 0.5, sources: [] });
+  }
+
+  // Last resort: model returned no text at all (e.g. only tool_use blocks with no text)
+  return res.status(200).json({
+    answer: `I couldn't find an answer to that question.`,
+    confidence: 0,
+    sources: [],
+  });
 }

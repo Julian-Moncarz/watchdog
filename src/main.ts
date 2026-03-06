@@ -1,6 +1,6 @@
 import './style.css';
 import type { CheckedClaim, VerificationResult, QuestionAnswer } from './lib/types.ts';
-import { playChime } from './lib/sound.ts';
+import { playChime, playAnswerChime } from './lib/sound.ts';
 
 // --- State ---
 let claims: CheckedClaim[] = [];
@@ -13,6 +13,8 @@ let dgSocket: WebSocket | null = null;
 let claimIdCounter = 0;
 let triggerPending = false;
 let triggerSpeaker = '';
+let extractIntervalId: ReturnType<typeof setInterval> | null = null;
+const verifyCache = new Map<string, VerificationResult>();
 
 const TRIGGER = /\bwatchdog\b[,.:!?]?\s*/i;
 
@@ -58,11 +60,20 @@ function getCorrectionsText(): string {
 }
 
 // --- Theme ---
-function toggleTheme(): void {
+function setTheme(command?: string): void {
   const html = document.documentElement;
-  const current = html.getAttribute('data-theme');
-  const next = current === 'dark' ? 'light' : current === 'light' ? 'dark'
-    : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark';
+  const current = html.getAttribute('data-theme')
+    || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+  let next: string;
+  if (command && /\bdark\b/i.test(command)) {
+    next = 'dark';
+  } else if (command && /\blight\b/i.test(command)) {
+    next = 'light';
+  } else {
+    next = current === 'dark' ? 'light' : 'dark';
+  }
+
   html.setAttribute('data-theme', next);
   localStorage.setItem('watchdog-theme', next);
   showNotice(`Switched to ${next} mode.`);
@@ -123,11 +134,21 @@ function render(): void {
 }
 
 function renderInner(app: HTMLElement, flaggedClaims: CheckedClaim[]): void {
+  // Merge answers and flagged claims into a single feed sorted by timestamp (newest first)
+  const feedItems: { type: 'answer' | 'claim'; item: QuestionAnswer | CheckedClaim }[] = [
+    ...answers.map(a => ({ type: 'answer' as const, item: a })),
+    ...flaggedClaims.map(c => ({ type: 'claim' as const, item: c })),
+  ].sort((a, b) => b.item.timestamp - a.item.timestamp);
+
   app.innerHTML = `
     <main class="main">
       ${!hasResults()
         ? `<div class="empty-state"></div>`
-        : `<div class="feed">${answers.map(a => renderAnswer(a)).join('')}${flaggedClaims.map(c => renderClaim(c)).join('')}</div>`
+        : `<div class="feed">${feedItems.map(f =>
+            f.type === 'answer'
+              ? renderAnswer(f.item as QuestionAnswer)
+              : renderClaim(f.item as CheckedClaim)
+          ).join('')}</div>`
       }
     </main>
   `;
@@ -222,7 +243,7 @@ async function handleCommand(question: string, speaker: string): Promise<void> {
     if (intent === 'clipboard') {
       copyTranscript();
     } else if (intent === 'theme') {
-      toggleTheme();
+      setTheme(question);
     } else {
       submitQuestion(question, speaker, intent === 'transcript');
     }
@@ -233,7 +254,25 @@ async function handleCommand(question: string, speaker: string): Promise<void> {
 }
 
 // --- Deepgram streaming ---
+function cleanup(): void {
+  if (extractIntervalId) {
+    clearInterval(extractIntervalId);
+    extractIntervalId = null;
+  }
+  if (dgSocket) {
+    dgSocket.onclose = null;
+    dgSocket.close();
+    dgSocket = null;
+  }
+  if (mediaRecorder?.state === 'recording') {
+    mediaRecorder.stop();
+  }
+  mediaRecorder = null;
+}
+
 async function startListening(): Promise<void> {
+  cleanup();
+
   try {
     const resp = await fetch('/api/transcribe', { method: 'POST' });
     const config = await resp.json();
@@ -304,18 +343,16 @@ async function startListening(): Promise<void> {
     };
 
     dgSocket.onclose = () => {
-      if (mediaRecorder?.state === 'recording') {
-        mediaRecorder.stop();
-      }
       stream.getTracks().forEach(t => t.stop());
     };
 
-    setInterval(() => {
+    extractIntervalId = setInterval(() => {
       processNewTranscript();
     }, 10_000);
 
   } catch (err) {
     console.error('Failed to start listening:', err);
+    showNotice('Microphone access is needed to listen.');
   }
 }
 
@@ -340,14 +377,23 @@ async function processNewTranscript(): Promise<void> {
     if (!extracted || extracted.length === 0) return;
 
     const verifyPromises = extracted.map(async (ec: { claim: string; speaker: string; context: string }) => {
-      const vResp = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ claim: ec.claim, context: ec.context }),
-      });
-      const verification: VerificationResult = await vResp.json();
-      if (!verification.sources) verification.sources = [];
-      if (!verification.response) verification.response = '';
+      const cacheKey = ec.claim.toLowerCase().trim();
+      let verification: VerificationResult;
+
+      if (verifyCache.has(cacheKey)) {
+        verification = verifyCache.get(cacheKey)!;
+        console.log('[verify cache hit]', ec.claim);
+      } else {
+        const vResp = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ claim: ec.claim, context: ec.context }),
+        });
+        verification = await vResp.json();
+        if (!verification.sources) verification.sources = [];
+        if (!verification.response) verification.response = '';
+        verifyCache.set(cacheKey, verification);
+      }
       console.log('[verdict]', ec.claim, '→', verification.verdict, verification.response);
 
       const checked: CheckedClaim = {
@@ -412,6 +458,7 @@ async function submitQuestion(question: string, speaker: string, withTranscript:
       confidence: result.confidence || 0,
       sources: result.sources || [],
     } : a);
+    playAnswerChime();
     render();
   } catch {
     answers = answers.map(a => a.id === placeholderId ? {
