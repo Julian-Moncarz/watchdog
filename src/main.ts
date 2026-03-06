@@ -3,7 +3,6 @@ import type { CheckedClaim, VerificationResult, QuestionAnswer } from './lib/typ
 import { playChime, initAudio } from './lib/sound.ts';
 
 // --- State ---
-let isRecording = false;
 let claims: CheckedClaim[] = [];
 let answers: QuestionAnswer[] = [];
 let expandedClaimId: string | null = null;
@@ -104,7 +103,6 @@ function render(): void {
 
 function renderInner(app: HTMLElement, flaggedClaims: CheckedClaim[]): void {
   app.innerHTML = `
-    ${isRecording ? '<div class="rec-dot"></div>' : ''}
     <main class="main">
       ${!hasResults()
         ? `<div class="empty-state"><p class="empty-text" id="rotating-hint"><em>Watchdog,<br>${esc(hints[hintIndex])}</em></p></div>`
@@ -198,8 +196,6 @@ async function startListening(): Promise<void> {
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    isRecording = true;
-    render();
 
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(config.params)) {
