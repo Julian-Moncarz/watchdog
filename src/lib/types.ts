@@ -1,7 +1,7 @@
 export interface ExtractedClaim {
   claim: string;
-  speaker: string;
-  context: string;
+  speaker?: string;
+  context?: string;
 }
 
 export type Verdict = "TRUE" | "FALSE" | "MOSTLY_TRUE" | "MOSTLY_FALSE" | "UNVERIFIABLE";

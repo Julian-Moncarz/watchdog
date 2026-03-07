@@ -19,7 +19,7 @@ let claimIdCounter = 0;
 let triggerPending = false;
 let triggerSpeaker = '';
 let extractIntervalId: ReturnType<typeof setInterval> | null = null;
-const previousChunks: string[] = [];
+const previousChunks: string[] = []; // kept for voice command transcript context
 const verifyCache = new Map<string, VerificationResult>();
 
 function hasResults(): boolean {
@@ -338,21 +338,20 @@ async function processNewTranscript(): Promise<void> {
   processedText = fullText;
   console.log('[extract input]', newText);
 
-  const priorContext = buildPriorContext(previousChunks);
   previousChunks.push(newText);
 
   try {
-    const extractResp = await fetch('/api/extract', {
+    const extractResp = await fetch('/api/extract-local', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript: newText, prior_context: priorContext || undefined }),
+      body: JSON.stringify({ transcript: newText }),
     });
     const extractData = await extractResp.json();
     console.log('[extract response]', extractData);
     const extracted = extractData.claims;
     if (!extracted || extracted.length === 0) return;
 
-    const verifyPromises = extracted.map(async (ec: { claim: string; speaker: string; context: string }) => {
+    const verifyPromises = extracted.map(async (ec: { claim: string }) => {
       const cacheKey = getCacheKey(ec.claim);
       let verification: VerificationResult;
 
@@ -363,7 +362,7 @@ async function processNewTranscript(): Promise<void> {
         const vResp = await fetch('/api/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ claim: ec.claim, context: ec.context }),
+          body: JSON.stringify({ claim: ec.claim }),
         });
         verification = await vResp.json();
         if (!verification.sources) verification.sources = [];
@@ -375,8 +374,6 @@ async function processNewTranscript(): Promise<void> {
       const checked: CheckedClaim = {
         id: String(++claimIdCounter),
         claim: ec.claim,
-        speaker: ec.speaker,
-        context: ec.context,
         verification,
         timestamp: Date.now(),
       };

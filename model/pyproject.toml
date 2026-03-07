@@ -1,0 +1,19 @@
+[project]
+name = "watchdog-claim-classifier"
+version = "0.1.0"
+description = "Fine-tuned ModernBERT for factual claim detection in speech transcripts"
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.2",
+    "transformers>=4.48",
+    "datasets>=3.0",
+    "accelerate>=1.0",
+    "scikit-learn>=1.4",
+    "anthropic>=0.49",
+    "onnx>=1.15",
+    "onnxruntime>=1.17",
+    "optimum[onnxruntime]>=1.21",
+]
+
+[tool.uv]
+dev-dependencies = []
