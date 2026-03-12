@@ -210,8 +210,6 @@ async function handleCommand(question: string, speaker: string): Promise<void> {
       body: JSON.stringify({ command: question }),
     });
     const { intent } = await resp.json();
-    console.log('[classify]', question, '→', intent);
-
     if (intent === 'clipboard') {
       copyTranscript();
     } else if (intent === 'theme') {
@@ -285,12 +283,9 @@ async function startListening(): Promise<void> {
           const speaker = words.length > 0 && words[0].speaker !== undefined
             ? `Speaker ${words[0].speaker}`
             : 'Speaker';
-          console.log('[transcript]', `${speaker}: ${transcript}`);
-
           const trigger = matchTrigger(transcript);
           if (trigger.matched) {
             if (trigger.command.length > 3) {
-              console.log('[watchdog command]', trigger.command, `(${speaker})`);
               handleCommand(trigger.command, speaker);
               triggerPending = false;
             } else {
@@ -300,7 +295,6 @@ async function startListening(): Promise<void> {
           } else if (triggerPending) {
             const question = transcript.replace(/^[.,!?\s]+/, '').trim();
             if (question.length > 3) {
-              console.log('[watchdog command]', question, `(${triggerSpeaker})`);
               handleCommand(question, triggerSpeaker);
             }
             triggerPending = false;
@@ -336,8 +330,6 @@ async function processNewTranscript(): Promise<void> {
   if (!newText) return;
 
   processedText = fullText;
-  console.log('[extract input]', newText);
-
   const priorContext = buildPriorContext(previousChunks);
   previousChunks.push(newText);
 
@@ -348,7 +340,6 @@ async function processNewTranscript(): Promise<void> {
       body: JSON.stringify({ transcript: newText, prior_context: priorContext || undefined }),
     });
     const extractData = await extractResp.json();
-    console.log('[extract response]', extractData);
     const extracted = extractData.claims;
     if (!extracted || extracted.length === 0) return;
 
@@ -358,7 +349,6 @@ async function processNewTranscript(): Promise<void> {
 
       if (verifyCache.has(cacheKey)) {
         verification = verifyCache.get(cacheKey)!;
-        console.log('[verify cache hit]', ec.claim);
       } else {
         const vResp = await fetch('/api/verify', {
           method: 'POST',
@@ -370,8 +360,6 @@ async function processNewTranscript(): Promise<void> {
         if (!verification.response) verification.response = '';
         verifyCache.set(cacheKey, verification);
       }
-      console.log('[verdict]', ec.claim, '→', verification.verdict, verification.response);
-
       const checked: CheckedClaim = {
         id: String(++claimIdCounter),
         claim: ec.claim,

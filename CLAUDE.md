@@ -43,7 +43,6 @@ A voice-activated fact-checker PWA. Listens to conversations via microphone, ext
 ### Key files
 
 - `src/lib/types.ts` — all shared TypeScript interfaces (`CheckedClaim`, `VerificationResult`, `Verdict`, etc.)
-- `src/lib/prompts.ts` — system prompts for extraction, verification, and Q&A (client-side copies; API routes have their own copies)
 - `src/lib/sound.ts` — Web Audio API chime synthesis
 - `src/style.css` — all styles
 - `public/` — PWA assets (manifest, service worker, icons)
@@ -64,4 +63,4 @@ A voice-activated fact-checker PWA. Listens to conversations via microphone, ext
 - The eval harness uses the `@anthropic-ai/sdk` package directly
 - Prompts instruct the model to respond with raw JSON (no markdown fences)
 - Verdicts are one of: `TRUE`, `FALSE`, `MOSTLY_TRUE`, `MOSTLY_FALSE`, `UNVERIFIABLE`
-- Note: prompts are duplicated between `src/lib/prompts.ts` and the `api/` files — keep them in sync
+- Note: prompts live in the `api/` route files

@@ -1,4 +1,4 @@
-import type { CheckedClaim, QuestionAnswer, Verdict } from './types.ts';
+import type { Verdict } from './types.ts';
 
 export const TRIGGER = /\bwatch\s*dog\b[,.:!?]?\s*/i;
 
@@ -20,17 +20,6 @@ export function calculateTranscriptDelta(fullText: string, processedText: string
 
 export function buildPriorContext(chunks: string[], windowSize = 2): string {
   return chunks.slice(-windowSize).join('\n');
-}
-
-export function mergeAndSortFeed(
-  claims: CheckedClaim[],
-  answers: QuestionAnswer[],
-): { type: 'answer' | 'claim'; item: QuestionAnswer | CheckedClaim }[] {
-  const flaggedClaims = claims.filter(c => isFlagged(c.verification.verdict));
-  return [
-    ...answers.map(a => ({ type: 'answer' as const, item: a })),
-    ...flaggedClaims.map(c => ({ type: 'claim' as const, item: c })),
-  ].sort((a, b) => b.item.timestamp - a.item.timestamp);
 }
 
 export function matchTrigger(text: string): { matched: boolean; command: string } {
