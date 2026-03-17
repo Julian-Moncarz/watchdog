@@ -33,31 +33,6 @@ function getCorrectionsText(): string {
   return flagged.map(c => `Claim: "${c.claim}" → ${c.verification.verdict}: ${c.verification.response}`).join('\n');
 }
 
-// --- Theme ---
-function setTheme(command?: string): void {
-  const html = document.documentElement;
-  const current = html.getAttribute('data-theme')
-    || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-
-  let next: string;
-  if (command && /\bdark\b/i.test(command)) {
-    next = 'dark';
-  } else if (command && /\blight\b/i.test(command)) {
-    next = 'light';
-  } else {
-    next = current === 'dark' ? 'light' : 'dark';
-  }
-
-  html.setAttribute('data-theme', next);
-  localStorage.setItem('watchdog-theme', next);
-  showNotice(`Switched to ${next} mode.`);
-}
-
-function applyStoredTheme(): void {
-  const stored = localStorage.getItem('watchdog-theme');
-  if (stored) document.documentElement.setAttribute('data-theme', stored);
-}
-
 // --- Clipboard ---
 function copyTranscript(): void {
   const text = transcriptBuffer.join('\n');
@@ -212,8 +187,6 @@ async function handleCommand(question: string, speaker: string): Promise<void> {
     const { intent } = await resp.json();
     if (intent === 'clipboard') {
       copyTranscript();
-    } else if (intent === 'theme') {
-      setTheme(question);
     } else {
       submitQuestion(question, speaker, intent === 'transcript');
     }
@@ -497,7 +470,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
-applyStoredTheme();
 showOnboarding();
 mountDog();
 render();

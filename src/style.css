@@ -8,29 +8,6 @@
   --font: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #111111;
-    --text: #e5e5e5;
-    --text-dim: #777777;
-    --border: #222222;
-  }
-
-  :root:not([data-theme="light"]) ::selection {
-    background: rgba(255, 255, 255, 0.12);
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #111111;
-  --text: #e5e5e5;
-  --text-dim: #777777;
-  --border: #222222;
-}
-
-:root[data-theme="dark"] ::selection {
-  background: rgba(255, 255, 255, 0.12);
-}
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -128,24 +105,6 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
   bottom: 0.4rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .watchdog-icon {
-    filter: invert(0.85);
-    opacity: 0.1;
-  }
-  :root:not([data-theme="light"]) .watchdog-icon:active {
-    opacity: 0.2;
-  }
-}
-
-:root[data-theme="dark"] .watchdog-icon {
-  filter: invert(0.85);
-  opacity: 0.1;
-}
-
-:root[data-theme="dark"] .watchdog-icon:active {
-  opacity: 0.2;
-}
 
 @keyframes fade-out {
   from { opacity: 1; }
@@ -318,15 +277,6 @@ button { font: inherit; cursor: pointer; border: none; background: none; color: 
 .dog-option-2 img { width: 140px; height: 140px; }
 .dog-option-3 { margin-top: -0.5rem; }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .dog-option img {
-    filter: brightness(0) invert(1);
-  }
-}
-
-:root[data-theme="dark"] .dog-option img {
-  filter: brightness(0) invert(1);
-}
 
 /* Toast */
 .toast {
